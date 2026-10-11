@@ -6,6 +6,7 @@ engine sees an ordinary connected gamepad: controller layouts, assisted aim
 and analog driving all use their normal code paths.
 """
 from pathlib import Path
+import re
 root=Path(__file__).resolve().parents[1]
 p=root/'Generated/game_0.c'
 s=p.read_text()
@@ -58,10 +59,24 @@ print('Direct touch mouse input and input-frame completion prepared.')
 signatures = [f'void w2c_game_f{i}(w2c_game* instance) {{' for i in
               [37634, 37635, 37636, 37638, 37639, 37641, 37644, 37645, 37646, 37650, 37654]]
 signatures += ['void w2c_game_f49437(w2c_game* instance, u32 var_p0, u32 var_p1, u32 var_p2) {']
+signatures += ['void w2c_game_f37642(w2c_game* instance, u64 var_p0, u32 var_p1) {', 'void w2c_game_f52794(w2c_game* instance, u64 var_p0) {', 'void w2c_game_f52797(w2c_game* instance) {', 'void w2c_game_f52798(w2c_game* instance) {', 'u32 w2c_game_f37934(w2c_game* instance, u64 var_p0) {', 'void w2c_game_f53007(w2c_game* instance, u32 var_p0) {', 'void w2c_game_f53008(w2c_game* instance, u32 var_p0) {', 'void w2c_game_f53009(w2c_game* instance, u32 var_p0) {', 'void w2c_game_f53010(w2c_game* instance, u32 var_p0) {', 'u32 w2c_game_f58714(w2c_game* instance) {', 'u32 w2c_game_f58715(w2c_game* instance) {', 'void w2c_game_f58753(w2c_game* instance, u32 var_p0, f32 var_p1) {', 'void w2c_game_f58754(w2c_game* instance, u32 var_p0, f32 var_p1) {', 'void w2c_game_f58646(w2c_game* instance, u32 var_p0) {', 'void w2c_game_f58699(w2c_game* instance, u32 var_p0) {', 'void w2c_game_f58779(w2c_game* instance, u32 var_p0, u32 var_p1, u32 var_p2) {', 'u32 w2c_game_f57184(w2c_game* instance, u32 var_p0, u32 var_p1) {', 'void w2c_game_f61578(w2c_game* instance, u32 var_p0) {', 'void w2c_game_f50154(w2c_game* instance, u32 var_p0, u64 var_p1) {', 'void w2c_game_f50156(w2c_game* instance, u32 var_p0, u32 var_p1) {', 'f32 w2c_game_f50032(w2c_game* instance, u32 var_p0) {', 'void w2c_game_f52941(w2c_game* instance, u32 var_p0) {']
 units = {unit: unit.read_text() for unit in (root / 'Generated').glob('game_*.c')}
 for signature in signatures:
     if sum(signature in text for text in units.values()) != 1:
         raise RuntimeError('Pinned trainer function changed: ' + signature)
+# Fail before compilation if the per-frame flag writer or argument layout differs.
+checks = {53010: ['16384u', '4328u'], 53009: ['8192u', '4328u'],
+          53007: ['2048u', '4328u'], 53008: ['4096u', '4328u'],
+          37642: ['w2c_game_f680(', 'w2c_game_f4633(', '65535u'],
+          50154: ['8u', '16u', 'w2c_game_f8693('],
+          58754: ['1.5f', '1.0f', '3872u'], 58753: ['1.5f', '736u']}
+for index, markers in checks.items():
+    pattern = r'\n(?:void|u32|u64|f32) w2c_game_f' + str(index) + r'\([^\n]+\) \{'
+    body = next(body for body in units.values() if re.search(pattern, body))
+    match = re.search(pattern, body)
+    function = body[match.start():body.index('\n}', match.end()) + 2]
+    for marker in markers:
+        if marker not in function: raise RuntimeError('Pinned power body changed: ' + str(index) + ' ' + marker)
 signature = 'void w2c_game_f37654(w2c_game* instance) {'
 unit = next(unit for unit, text in units.items() if signature in text)
 text = units[unit]
@@ -87,4 +102,4 @@ if new not in function:
     text = text[:start] + function.replace(old, new) + text[end:]
 if include not in text: text = text.replace('#include "game-impl.h"', include, 1)
 if unit.read_text() != text: unit.write_text(text)
-print('TRAINER ENGINE HOOK VERIFIED: native cheat update, 12 pinned functions, invincibility branch.')
+print('TRAINER ENGINE HOOK VERIFIED: native cheat update, 34 pinned functions, invincibility branch.')

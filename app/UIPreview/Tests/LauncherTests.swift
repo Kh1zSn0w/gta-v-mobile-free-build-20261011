@@ -1,6 +1,55 @@
 import XCTest
 
 final class LauncherTests: XCTestCase {
+    func testExpandedTrainerSearchTogglesWeatherAndReset() {
+        let app = XCUIApplication()
+        app.launchArguments = ["--trainer-preview"]
+        app.launch()
+        XCTAssertTrue(app.navigationBars["Trainer"].waitForExistence(timeout: 10))
+        let categories = app.segmentedControls["trainer.categories"]
+        categories.buttons["Powers"].tap()
+        let jump = app.descendants(matching: .any).matching(identifier: "trainer.action.16").firstMatch
+        XCTAssertEqual(jump.value as? String, "OFF")
+        jump.tap()
+        XCTAssertTrue(app.staticTexts["Handed to game · Super jump"].waitForExistence(timeout: 3))
+        XCTAssertEqual(jump.value as? String, "ON")
+        categories.buttons["Vehicles"].tap()
+        let search = app.searchFields["Find a tool or vehicle"]
+        search.tap(); search.typeText("Rhino\n")
+        let tank = app.descendants(matching: .any).matching(identifier: "trainer.action.79").firstMatch
+        XCTAssertTrue(tank.waitForExistence(timeout: 3)); tank.tap()
+        XCTAssertTrue(app.staticTexts["Handed to game · Rhino"].waitForExistence(timeout: 3))
+        categories.buttons["World"].tap()
+        search.tap(); search.typeText("Blizzard\n")
+        app.descendants(matching: .any).matching(identifier: "trainer.action.44").firstMatch.tap()
+        XCTAssertTrue(app.staticTexts["Handed to game · Blizzard"].waitForExistence(timeout: 3))
+        categories.buttons["Powers"].tap()
+        search.tap(); search.typeText("Reset powers\n")
+        app.descendants(matching: .any).matching(identifier: "trainer.action.25").firstMatch.tap()
+        XCTAssertTrue(app.staticTexts["Handed to game · Reset powers"].waitForExistence(timeout: 3))
+        categories.buttons["Player"].tap(); categories.buttons["Powers"].tap()
+        XCTAssertEqual(jump.value as? String, "OFF")
+    }
+
+    func testTrainerFlightIsReachableInLandscape() {
+        let app = XCUIApplication()
+        app.launchArguments = ["--trainer-preview"]
+        app.launch()
+        XCTAssertTrue(app.navigationBars["Trainer"].waitForExistence(timeout: 10))
+        XCUIDevice.shared.orientation = .landscapeLeft
+        defer { XCUIDevice.shared.orientation = .portrait }
+        app.segmentedControls["trainer.categories"].buttons["Powers"].tap()
+        let search = app.searchFields["Find a tool or vehicle"]
+        search.tap(); search.typeText("Hover flight\n")
+        let flight = app.descendants(matching: .any).matching(identifier: "trainer.action.24").firstMatch
+        XCTAssertTrue(flight.waitForExistence(timeout: 4)); flight.tap()
+        XCTAssertTrue(app.staticTexts["Handed to game · Hover flight · experimental"].waitForExistence(timeout: 4))
+        XCTAssertEqual(flight.value as? String, "ON")
+        flight.tap()
+        let off = NSPredicate(format: "value == %@", "OFF")
+        expectation(for: off, evaluatedWith: flight); waitForExpectations(timeout: 4)
+    }
+
     func testTrainerRoutesPlayerVehicleAndWorldRequests() {
         let app = XCUIApplication()
         app.launchArguments = ["--test-touch-controls"]
@@ -24,6 +73,8 @@ final class LauncherTests: XCTestCase {
         action(7).tap()
         XCTAssertTrue(app.staticTexts["Handed to game · Comet"].waitForExistence(timeout: 4))
         app.segmentedControls["trainer.categories"].buttons["World"].tap()
+        app.searchFields["Find a tool or vehicle"].tap()
+        app.searchFields["Find a tool or vehicle"].typeText("Golden hour\n")
         let sunset = action(14)
         for _ in 0..<3 where !sunset.isHittable { app.tables.firstMatch.swipeUp() }
         XCTAssertTrue(sunset.isHittable)

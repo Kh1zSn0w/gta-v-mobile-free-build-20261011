@@ -63,3 +63,4 @@ bool PGTrainerReady(void);
 bool PGTrainerRequest(uint32_t command);
 uint32_t PGTrainerStatus(void);
 bool PGTrainerInvincible(void);
+bool PGTrainerToggleState(uint32_t command);

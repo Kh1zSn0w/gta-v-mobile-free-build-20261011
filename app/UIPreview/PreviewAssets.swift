@@ -32,15 +32,26 @@ func PGSetProcessMemoryBudget(_ amount: UInt32) {}
 // Simulator-only handoff model, separate from the real engine queue tests.
 private var trainerPreviewStatus: UInt32 = 0
 private var trainerPreviewInvincible = false
+private var trainerPreviewToggles: Set<UInt32> = []
 func PGTrainerReady() -> Bool { ProcessInfo.processInfo.arguments.contains("--trainer-unavailable") == false }
 func PGTrainerRequest(_ command: UInt32) -> Bool {
-    guard PGTrainerReady(), (1...15).contains(command), trainerPreviewStatus != 1 else { return false }
+    guard PGTrainerReady(), (1...85).contains(command), trainerPreviewStatus != 1 else { return false }
     trainerPreviewStatus = 1
     DispatchQueue.main.asyncAfter(deadline: .now() + 0.4) {
         if command == 5 { trainerPreviewInvincible.toggle() }
+        if (16...24).contains(command) || command == 30 {
+            if trainerPreviewToggles.contains(command) { trainerPreviewToggles.remove(command) }
+            else { trainerPreviewToggles.insert(command) }
+        }
+        if command == 18 { trainerPreviewToggles.remove(19) }
+        if command == 19 { trainerPreviewToggles.remove(18) }
+        if command == 31 { trainerPreviewToggles.remove(30) }
+        if command == 25 { trainerPreviewToggles.removeAll(); trainerPreviewInvincible = false }
         trainerPreviewStatus = 2
     }
     return true
 }
 func PGTrainerStatus() -> UInt32 { trainerPreviewStatus }
 func PGTrainerInvincible() -> Bool { trainerPreviewInvincible }
+
+func PGTrainerToggleState(_ command: UInt32) -> Bool { trainerPreviewToggles.contains(command) }

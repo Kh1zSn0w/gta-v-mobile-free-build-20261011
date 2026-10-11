@@ -7,8 +7,8 @@ int main(void) {
     assert(!pg_trainer_submit(&queue, PG_TRAINER_HEALTH, 0));
     assert(!pg_trainer_take(&queue, true, 0));
     assert(!pg_trainer_submit(&queue, 0, 0));
-    assert(!pg_trainer_submit(&queue, 16, 0));
-    for (uint32_t command = 1; command <= 15; command++) {
+    assert(!pg_trainer_submit(&queue, 86, 0));
+    for (uint32_t command = 1; command <= 85; command++) {
         assert(pg_trainer_submit(&queue, command, 10));
         assert(atomic_load(&queue.status) == PG_TRAINER_PENDING);
         assert(!pg_trainer_submit(&queue, 1, 11));
@@ -26,5 +26,5 @@ int main(void) {
     assert(!pg_trainer_take(&queue, false, 31));
     assert(atomic_load(&queue.status) == PG_TRAINER_UNAVAILABLE);
     assert(!pg_trainer_take(&queue, true, 32));
-    puts("TRAINER QUEUE CHECKS PASSED: 15 commands, no overwrites, no replay, readiness and expiry.");
+    puts("TRAINER QUEUE CHECKS PASSED: 85 commands, no overwrites, no replay, readiness and expiry.");
 }
