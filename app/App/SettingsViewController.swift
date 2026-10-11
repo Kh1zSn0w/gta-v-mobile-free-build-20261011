@@ -108,6 +108,7 @@ final class SettingsViewController: UITableViewController {
             }
             if settings.graphicsPreset != bootPreset && engineRunning { text += " Restart needed for \(settings.graphicsPreset.title)." }
             if settings.tier.risky(settings.graphicsPreset) { text += " Presets above the recommended one can run out of memory or overheat on this phone; if a launch fails, the game falls back automatically." }
+            if settings.graphicsPreset == .extreme { text += " Extreme starts at 720p and permits up to 8 GB total app memory with streaming headroom. iOS may allow less; this is a ceiling, not reserved RAM. The engine heap still has its existing 4 GB cap." }
             text += " Farther detail and texture clarity increase GPU load. Pixel sharpness also depends on resolution scale and the graphics preset."
             return text
         case .controls:
@@ -136,8 +137,10 @@ final class SettingsViewController: UITableViewController {
             if indexPath.row < presets.count {
                 let preset = presets[indexPath.row]
                 content.text = preset.title + (preset == settings.tier.recommended ? " (recommended)" : "")
+                cell.accessibilityIdentifier = "graphics.preset.\(preset.rawValue)"
                 content.secondaryText = "\(preset.height)p · " + preset.detail
                 cell.accessoryType = preset == settings.graphicsPreset ? .checkmark : .none
+                cell.accessibilityValue = preset == settings.graphicsPreset ? "Selected" : nil
             } else {
                 let row = indexPath.row - presets.count
                 cell.selectionStyle = .none
@@ -330,6 +333,7 @@ final class SettingsViewController: UITableViewController {
         let presets = settings.tier.allowed
         guard sections[indexPath.section] == .graphics, indexPath.row < presets.count else { return }
         settings.graphicsPreset = presets[indexPath.row]
+        if settings.graphicsPreset == .extreme { settings.resolutionScale = 1.0 }
         resolutionChanged?()
         reload(.graphics)
     }

@@ -38,5 +38,14 @@ import Foundation
         assert(extended.contains("-lodScale=0.32") && extended.contains("-textureQuality=1"))
         assert(ViewDistance.far.apply(to: original).contains("-lodScale=0.45"))
         print("SWIPE LOOK CHECKS PASSED")
+        assert(GraphicsPreset.performance.rawValue == 1 && GraphicsPreset.ultra.rawValue == 4)
+        assert(GraphicsPreset.extreme.rawValue == 5 && GraphicsPreset.extreme.height == 720)
+        assert(GraphicsPreset.extreme.processBudgetMB == 8192)
+        assert(GraphicsPreset.displayOrder[2] == .extreme)
+        let extreme = GraphicsPreset.extreme.engineOptions
+        assert(extreme.contains("-textureQuality=1") && extreme.contains("-shaderQuality=1"))
+        assert(extreme.contains("-percentageForStreamer=0.80"))
+        assert(GraphicsPreset.balanced.processBudgetMB == 0)
+        print("EXTREME PRESET CHECKS PASSED: stable saved values, 720p, high detail and 8 GB ceiling.")
     }
 }

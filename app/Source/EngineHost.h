@@ -19,6 +19,8 @@ typedef struct {
 // Before PGStartEngine: engine quality options (e.g. "-shadowQuality=0"),
 // back-buffer size and frame limit (0 none, 1 = 60, 2 = 30 FPS).
 void PGConfigureEngine(const char *const *quality, unsigned count, int width, int height, int frameLimit);
+// Before engine start: optional total process ceiling in MiB, 0 retains normal budgeting.
+void PGSetProcessMemoryBudget(uint32_t amount);
 // Before PGStartEngine: 1 Story Mode (the release startup: continues the
 // newest save in /userdata/Documents, else a new game from the Prologue),
 // 2 Sandbox Mode (free roam on the GTA V map; its files go to

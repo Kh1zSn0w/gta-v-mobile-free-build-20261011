@@ -3,40 +3,6 @@ import Metal
 import UIKit
 import os
 
-/// Graphics presets. The engine reads quality settings once at boot; only the
-/// resolution can change while it runs.
-enum GraphicsPreset: Int, CaseIterable {
-    case battery, performance, balanced, quality, ultra
-
-    var title: String { ["Battery", "Performance", "Balanced", "Quality", "Ultra"][rawValue] }
-    /// Render height in pixels; width follows the screen's shape.
-    var height: Int { [432, 540, 720, 900, 1080][rawValue] }
-    var detail: String {
-        ["Lowest load, longest play time", "Today's tested setup for 6 GB iPhones", "Sharper image and shadows",
-         "Higher detail textures, effects and draw distance", "Highest settings this port supports"][rawValue]
-    }
-
-    /// Engine command-line options. Shader quality never goes below 1 (the
-    /// low shader set is mostly missing), and tessellation, MSAA and depth of
-    /// field stay off because their shaders do not run on Metal here.
-    var engineOptions: [String] {
-        switch self {
-        case .battery, .performance:
-            return ["-shaderQuality=1", "-textureQuality=0", "-shadowQuality=-1", "-reflectionQuality=0", "-particleQuality=0",
-                    "-grassQuality=0", "-cityDensity=0", "-lodScale=0", "-pedLodBias=0", "-vehicleLodBias=0", "-pedVariety=0", "-vehicleVariety=0"]
-        case .balanced:
-            return ["-shaderQuality=1", "-textureQuality=0", "-shadowQuality=0", "-reflectionQuality=0", "-particleQuality=0",
-                    "-grassQuality=0", "-cityDensity=0.2", "-lodScale=0.2", "-pedLodBias=0", "-vehicleLodBias=0", "-pedVariety=0.2", "-vehicleVariety=0.2"]
-        case .quality:
-            return ["-shaderQuality=1", "-textureQuality=1", "-shadowQuality=0", "-reflectionQuality=1", "-particleQuality=1",
-                    "-grassQuality=1", "-cityDensity=0.4", "-lodScale=0.4", "-pedLodBias=0.2", "-vehicleLodBias=0.2", "-pedVariety=0.4", "-vehicleVariety=0.4"]
-        case .ultra:
-            return ["-shaderQuality=2", "-textureQuality=1", "-shadowQuality=1", "-reflectionQuality=2", "-particleQuality=1",
-                    "-grassQuality=1", "-cityDensity=0.6", "-lodScale=0.6", "-pedLodBias=0.4", "-vehicleLodBias=0.4", "-pedVariety=0.6", "-vehicleVariety=0.6"]
-        }
-    }
-}
-
 /// What this device can afford, measured before the engine starts.
 struct DeviceTier {
     let memoryLimitMB: Int
@@ -49,9 +15,17 @@ struct DeviceTier {
         let model = withUnsafeBytes(of: &info.machine) { String(decoding: $0.prefix { $0 != 0 }, as: UTF8.self) }
         let device = MTLCreateSystemDefaultDevice()
         return DeviceTier(memoryLimitMB: Self.processMemoryLimitMB(),
-                          physicalMemoryMB: Int(ProcessInfo.processInfo.physicalMemory / 1_048_576),
+                          physicalMemoryMB: physicalMemoryMB(),
                           model: model,
                           supportsBCTextures: device?.supportsBCTextureCompression ?? false)
+    }
+
+    private static func physicalMemoryMB() -> Int {
+        #if targetEnvironment(simulator)
+        return Int(ProcessInfo.processInfo.environment["PG_SIM_PHYSICAL_MEMORY_MB"] ?? "") ?? 6144
+        #else
+        return Int(ProcessInfo.processInfo.physicalMemory / 1_048_576)
+        #endif
     }
 
     /// Jetsam limit = memory still available + what the app already uses.
@@ -78,13 +52,17 @@ struct DeviceTier {
     }
     /// Presets that are allowed at all; higher ones are hidden.
     var allowed: [GraphicsPreset] {
-        if memoryLimitMB < 3600 { return [.battery, .performance] }
-        if memoryLimitMB < 5000 { return [.battery, .performance, .balanced] }
-        if memoryLimitMB < 7000 { return [.battery, .performance, .balanced, .quality] }
-        return GraphicsPreset.allCases
+        let normal: [GraphicsPreset]
+        if memoryLimitMB < 3600 { normal = [.battery, .performance] }
+        else if memoryLimitMB < 5000 { normal = [.battery, .performance, .balanced] }
+        else if memoryLimitMB < 7000 { normal = [.battery, .performance, .balanced, .quality] }
+        else { normal = [.battery, .performance, .balanced, .quality, .ultra] }
+        return GraphicsPreset.displayOrder.filter {
+            normal.contains($0) || ($0 == .extreme && physicalMemoryMB >= 10_240 && memoryLimitMB >= 3600)
+        }
     }
     /// Presets shown with a warning because they may run out of memory or heat up.
-    func risky(_ preset: GraphicsPreset) -> Bool { preset.rawValue > recommended.rawValue }
+    func risky(_ preset: GraphicsPreset) -> Bool { preset == .extreme ? memoryLimitMB < 8704 : preset.rawValue > recommended.rawValue }
     var summary: String { "\(model) · \(physicalMemoryMB / 1024) GB · app limit \(memoryLimitMB) MB\(supportsBCTextures ? " · BC textures" : "")" }
 }
 
@@ -113,6 +91,7 @@ enum GraphicsConfiguration {
             case .balanced: level = ("0.30", "0.10", "0.10")
             case .quality:  level = ("0.50", "0.30", "0.30")
             case .ultra:    level = ("0.70", "0.50", "0.50")
+            case .extreme:  level = ("0.70", "0.40", "0.40")
             default:       level = ("0", "0", "0")
             }
             let overrides = [
@@ -132,6 +111,7 @@ enum GraphicsConfiguration {
         }
         options = settings.viewDistance.apply(to: options)
         PGSetTextureClarity(UInt32(settings.textureClarity.rawValue))
+        PGSetProcessMemoryBudget(preset.processBudgetMB)
         var pointers = options.map { strdup($0) }
         defer { pointers.forEach { free($0) } }
         pointers.withUnsafeMutableBufferPointer { buffer in

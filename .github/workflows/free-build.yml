@@ -18,7 +18,7 @@ jobs:
         run: bash app/Scripts/check_interaction_audio.sh
       - name: Verify swipe camera math
         run: |
-          swiftc app/App/SwipeLook.swift app/App/WorldDetail.swift app/UIPreview/SwipeMathChecks.swift -o /tmp/pg-swipe-checks
+          swiftc app/App/SwipeLook.swift app/App/WorldDetail.swift app/App/GraphicsPreset.swift app/UIPreview/SwipeMathChecks.swift -o /tmp/pg-swipe-checks
           /tmp/pg-swipe-checks
       - name: Build launcher and real touch overlay preview
         run: bash app/UIPreview/capture.sh
@@ -43,7 +43,7 @@ jobs:
         run: bash app/Scripts/check_interaction_audio.sh
       - name: Verify swipe camera math
         run: |
-          swiftc app/App/SwipeLook.swift app/App/WorldDetail.swift app/UIPreview/SwipeMathChecks.swift -o /tmp/pg-swipe-checks
+          swiftc app/App/SwipeLook.swift app/App/WorldDetail.swift app/App/GraphicsPreset.swift app/UIPreview/SwipeMathChecks.swift -o /tmp/pg-swipe-checks
           /tmp/pg-swipe-checks
       - name: Verify build inputs
         run: python3 app/Scripts/fetch_release_inputs.py

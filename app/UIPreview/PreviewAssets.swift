@@ -27,3 +27,4 @@ final class AssetPreloader {
 func PGConfigureEngine(_ options: UnsafePointer<UnsafePointer<CChar>?>, _ count: UInt32, _ width: Int32, _ height: Int32, _ interval: Int32) {}
 
 func PGSetTextureClarity(_ amount: UInt32) {}
+func PGSetProcessMemoryBudget(_ amount: UInt32) {}

@@ -75,6 +75,11 @@ f64 w2c_env_wasm_now_ms(struct w2c_env *host) { return timeMS(CLOCK_REALTIME); }
 f64 w2c_env_emscripten_date_now(struct w2c_env *host) { return timeMS(CLOCK_REALTIME); }
 u64 w2c_env_emscripten_get_heap_max(struct w2c_env *host) { wasm_rt_shared_memory_t *memory=w2c_env_memory(host);return memory->max_pages*memory->page_size; }
 static bool nativeMemoryGuard;
+static uint64_t configuredProcessBudget;
+void PGSetProcessMemoryBudget(uint32_t amount) {
+  configuredProcessBudget = amount == 8192 ? 8192ull * 1048576 : 0;
+}
+static uint64_t nativeMemoryReserve(void) { return (configuredProcessBudget ? 512ull : 384ull) * 1048576; }
 static _Atomic uint64_t memoryBudgetClamps,memoryBudgetQueries;
 uint64_t PGMemoryBudgetQueries(void){return atomic_load(&memoryBudgetQueries);}
 uint64_t PGMemoryBudgetClamps(void){return atomic_load(&memoryBudgetClamps);}
@@ -85,27 +90,34 @@ static bool nativeProcessHeadroom(uint64_t *headroom){
  uint64_t available;
 #if TARGET_OS_SIMULATOR
  // Simulator has no iOS Jetsam ceiling. Use an explicit simulated process limit.
- if(!simulatedProcessLimit)return false;
+ if(!simulatedProcessLimit&&!configuredProcessBudget)return false;
  task_vm_info_data_t info={};mach_msg_type_number_t count=TASK_VM_INFO_COUNT;
  if(task_info(mach_task_self(),TASK_VM_INFO,(task_info_t)&info,&count)!=KERN_SUCCESS)return false;
- available=simulatedProcessLimit>info.phys_footprint?simulatedProcessLimit-info.phys_footprint:0;
+ available=!simulatedProcessLimit?UINT64_MAX:(simulatedProcessLimit>info.phys_footprint?simulatedProcessLimit-info.phys_footprint:0);
 #else
  available=os_proc_available_memory();
 #endif
+ if(configuredProcessBudget){
+  task_vm_info_data_t budgetInfo={};mach_msg_type_number_t budgetCount=TASK_VM_INFO_COUNT;
+  if(task_info(mach_task_self(),TASK_VM_INFO,(task_info_t)&budgetInfo,&budgetCount)!=KERN_SUCCESS){
+   *headroom=0;return true;
+  }
+  available=pg_process_budget_headroom(available,budgetInfo.phys_footprint,configuredProcessBudget);
+ }
  *headroom=available;
  return true;
 }
 uint64_t pg_streaming_available_memory(uint64_t engineAvailable){
  uint64_t available;
  if(!nativeProcessHeadroom(&available))return engineAvailable;
- uint64_t result=pg_streaming_headroom_budget(engineAvailable,available,384ull*1048576);
+ uint64_t result=pg_streaming_headroom_budget(engineAvailable,available,nativeMemoryReserve());
  if(result<engineAvailable)atomic_fetch_add(&memoryBudgetClamps,1);
  return result;
 }
 uint64_t pg_streaming_resource_memory(uint64_t engineAvailable){
  uint64_t available;
  if(!nativeProcessHeadroom(&available))return engineAvailable;
- int64_t result=pg_streaming_resource_budget((int64_t)engineAvailable,available,384ull*1048576);
+ int64_t result=pg_streaming_resource_budget((int64_t)engineAvailable,available,nativeMemoryReserve());
  if(result<(int64_t)engineAvailable)atomic_fetch_add(&memoryBudgetClamps,1);
  return (uint64_t)result;
 }
@@ -452,7 +464,10 @@ static void *boot(void *ignored) {
   const char *limit=getenv("PG_STREAM_MEMORY_LIMIT_MB");
   if(limit){char *end;unsigned long mb=strtoul(limit,&end,10);if(end!=limit&&!*end&&mb>=2048&&mb<=8192)simulatedProcessLimit=(uint64_t)mb*1048576;}
 #endif
-  if(nativeMemoryGuard)pg_log("Native streaming memory guard enabled with 384 MB of reserve.");
+  if(configuredProcessBudget)nativeMemoryGuard=true;
+  if(nativeMemoryGuard){
+    char budgetLog[180];snprintf(budgetLog,sizeof budgetLog,"Native streaming guard: %llu MB reserve, process ceiling %llu MB (0 = iOS limit).",nativeMemoryReserve()/1048576,configuredProcessBudget/1048576);pg_log(budgetLog);
+  }
   pg_assets_prewarm();
   nativeEngineCores=pg_engine_core_configuration(getenv("PG_ENGINE_CORES"));
   char coresOption[32];snprintf(coresOption,sizeof coresOption,"-numCores=%u",nativeEngineCores);

@@ -17,6 +17,7 @@ targets:
       - ../App/TouchControlsView.swift
       - ../App/VirtualPad.swift
       - ../App/GraphicsOptions.swift
+      - ../App/GraphicsPreset.swift
       - ../App/WorldDetail.swift
       - ../App/GyroInput.swift
       - path: ../Resources/LauncherArtwork.jpg

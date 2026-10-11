@@ -6,3 +6,5 @@ xcrun clang -std=c11 -O2 -Wall -Wextra -I Source Tests/swipe_queue.c -o Build/Pr
 Build/Probe/swipe-queue
 xcrun clang -std=c11 -O2 -Wall -Wextra -I Source Tests/audio_ring.c -o Build/Probe/audio-ring
 Build/Probe/audio-ring
+xcrun clang -std=c11 -O2 -Wall -Wextra -I Source Tests/memory_budget.c -o Build/Probe/memory-budget
+Build/Probe/memory-budget

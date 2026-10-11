@@ -1,5 +1,12 @@
 #pragma once
 #include <stdint.h>
+// A total-process ceiling must include native/Metal allocations, not just the
+// engine heap. Always retain the smaller live iOS allowance.
+static inline uint64_t pg_process_budget_headroom(uint64_t available,uint64_t footprint,uint64_t ceiling){
+ if(!ceiling)return available;
+ uint64_t remaining=ceiling>footprint?ceiling-footprint:0;
+ return available<remaining?available:remaining;
+}
 // Keep a 256 MiB resource-pool growth step plus transient upload headroom.
 // The virtual heap capacity is unchanged; this only informs streaming eviction.
 static inline uint64_t pg_streaming_headroom_budget(uint64_t engineAvailable,uint64_t processAvailable,uint64_t reserve){
