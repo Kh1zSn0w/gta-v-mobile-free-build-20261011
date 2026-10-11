@@ -58,3 +58,8 @@ void PGSetTargetingMode(int32_t mode);
 bool PGPauseMenuActive(void);
 void PGFillAudio(float *left, float *right, uint32_t count);
 void PGResetAudio(void);
+// Session-only trainer requests, consumed by CCheat::DoCheats on its own thread.
+bool PGTrainerReady(void);
+bool PGTrainerRequest(uint32_t command);
+uint32_t PGTrainerStatus(void);
+bool PGTrainerInvincible(void);

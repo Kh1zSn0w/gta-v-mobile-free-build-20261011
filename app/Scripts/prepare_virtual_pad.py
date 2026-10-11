@@ -24,7 +24,7 @@ if new not in f:
 include='#include "game-virtual-pad-impl.h"'
 if include not in s:
     s=s.replace('#include "game-impl.h"',include,1)
-(root/'Generated/game-virtual-pad-impl.h').write_text('#include "game-impl.h"\nextern void pg_virtual_pad_apply(w2c_game *instance, uint64_t pad);\nextern void pg_touch_mouse_finish(void);\n')
+(root/'Generated/game-virtual-pad-impl.h').write_text('#include "game-impl.h"\nextern void pg_virtual_pad_apply(w2c_game *instance, uint64_t pad);\nextern void pg_touch_mouse_finish(void);\nextern void pg_trainer_tick(w2c_game *instance);\n')
 if p.read_text()!=s:p.write_text(s)
 
 # The v1.6 query multiplier is deliberately gone: touch now enters the
@@ -52,3 +52,31 @@ if new not in function:
 if include not in text: text = text.replace('#include "game-impl.h"', include, 1)
 if unit.read_text() != text: unit.write_text(text)
 print('Direct touch mouse input and input-frame completion prepared.')
+
+# Trainer commands run in the engine's own cheat update, never inside input
+# polling or UIKit. Fail the build if any pinned native signature changes.
+signatures = [f'void w2c_game_f{i}(w2c_game* instance) {{' for i in
+              [37634, 37635, 37636, 37638, 37639, 37641, 37644, 37645, 37646, 37650, 37654]]
+signatures += ['void w2c_game_f49437(w2c_game* instance, u32 var_p0, u32 var_p1, u32 var_p2) {']
+units = {unit: unit.read_text() for unit in (root / 'Generated').glob('game_*.c')}
+for signature in signatures:
+    if sum(signature in text for text in units.values()) != 1:
+        raise RuntimeError('Pinned trainer function changed: ' + signature)
+signature = 'void w2c_game_f37654(w2c_game* instance) {'
+unit = next(unit for unit, text in units.items() if signature in text)
+text = units[unit]
+start = text.index(signature)
+end = text.index('\n}', start) + 2
+function = text[start:end]
+for marker in ['20156136ull', '20156137ull', 'w2c_game_f37635(instance);', 'w2c_game_f37634(instance);']:
+    if marker not in function: raise RuntimeError('Pinned cheat update body changed: ' + marker)
+if sum(text.count('w2c_game_f37654(instance);') for text in units.values()) < 1:
+    raise RuntimeError('Cheat update has no engine callers')
+old = '  FUNC_EPILOGUE;\n}'
+new = '  pg_trainer_tick(instance);\n' + old
+if new not in function:
+    if function.count(old) != 1: raise RuntimeError('Cheat update has unexpected exits')
+    text = text[:start] + function.replace(old, new) + text[end:]
+if include not in text: text = text.replace('#include "game-impl.h"', include, 1)
+if unit.read_text() != text: unit.write_text(text)
+print('TRAINER ENGINE HOOK VERIFIED: native cheat update, 12 pinned functions, invincibility branch.')

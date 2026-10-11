@@ -38,6 +38,13 @@ final class PreviewController: UIViewController {
         home.downloadLabel.isHidden = false
         home.playButton.addAction(UIAction { [weak self] _ in self?.showPicker() }, for: .touchUpInside)
         home.openSection = { [weak self] section in self?.showSettings(section) }
+        if ProcessInfo.processInfo.arguments.contains("--trainer-preview") {
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+                let navigation = UINavigationController(rootViewController: TrainerViewController())
+                LauncherStyle.configure(navigation)
+                self.present(navigation, animated: false)
+            }
+        }
         if ProcessInfo.processInfo.arguments.contains("--mode-picker") {
             DispatchQueue.main.asyncAfter(deadline: .now() + 1) { self.showPicker() }
         }

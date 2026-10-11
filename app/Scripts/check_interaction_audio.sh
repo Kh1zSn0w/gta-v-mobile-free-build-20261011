@@ -8,3 +8,7 @@ xcrun clang -std=c11 -O2 -Wall -Wextra -I Source Tests/audio_ring.c -o Build/Pro
 Build/Probe/audio-ring
 xcrun clang -std=c11 -O2 -Wall -Wextra -I Source Tests/memory_budget.c -o Build/Probe/memory-budget
 Build/Probe/memory-budget
+xcrun clang -std=c11 -O2 -Wall -Wextra -I Source Tests/trainer_queue.c -o Build/Probe/trainer-queue
+Build/Probe/trainer-queue
+xcrun clang -std=c11 -O2 -Wall -Wextra -I Source Tests/trainer_engine.c -o Build/Probe/trainer-engine
+Build/Probe/trainer-engine

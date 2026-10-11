@@ -18,6 +18,7 @@
 #include <os/proc.h>
 #include <mach/mach.h>
 #include "NativeMemoryBudget.h"
+#include "NativeTrainer.h"
 
 static struct w2c_env env;
 static struct w2c_wasi__snapshot__preview1 wasi = { .env = &env };
@@ -414,6 +415,8 @@ int32_t PGLastInputDevice(void) {
   if (!atomic_load(&inputBlock) || env.memory.size < 24627140) return -3;
   return atomic_load_explicit((const _Atomic int32_t *)(void *)((const uint8_t *)(void *)env.memory.data + 24627136), memory_order_relaxed);
 }
+
+#include "TrainerEngine.inc"
 
 static PGAudioPlayback audioPlayback;
 static _Atomic bool resetAudio;

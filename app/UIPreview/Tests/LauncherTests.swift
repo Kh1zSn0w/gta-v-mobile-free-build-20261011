@@ -1,6 +1,57 @@
 import XCTest
 
 final class LauncherTests: XCTestCase {
+    func testTrainerRoutesPlayerVehicleAndWorldRequests() {
+        let app = XCUIApplication()
+        app.launchArguments = ["--test-touch-controls"]
+        app.launch()
+        XCTAssertTrue(app.buttons["Trainer"].waitForExistence(timeout: 10))
+        app.buttons["Trainer"].tap()
+        XCTAssertTrue(app.navigationBars["Trainer"].waitForExistence(timeout: 4))
+        func action(_ command: Int) -> XCUIElement {
+            app.descendants(matching: .any).matching(identifier: "trainer.action.\(command)").firstMatch
+        }
+        let invincible = action(5)
+        XCTAssertTrue(invincible.waitForExistence(timeout: 3))
+        XCTAssertEqual(invincible.value as? String, "OFF")
+        invincible.tap()
+        let on = NSPredicate(format: "value == %@", "ON")
+        expectation(for: on, evaluatedWith: invincible)
+        waitForExpectations(timeout: 4)
+        action(1).tap()
+        XCTAssertTrue(app.staticTexts["Handed to game · Health & armor"].waitForExistence(timeout: 4))
+        app.segmentedControls["trainer.categories"].buttons["Vehicles"].tap()
+        action(7).tap()
+        XCTAssertTrue(app.staticTexts["Handed to game · Comet"].waitForExistence(timeout: 4))
+        app.segmentedControls["trainer.categories"].buttons["World"].tap()
+        let sunset = action(14)
+        for _ in 0..<3 where !sunset.isHittable { app.tables.firstMatch.swipeUp() }
+        XCTAssertTrue(sunset.isHittable)
+        sunset.tap()
+        XCTAssertTrue(app.staticTexts["Handed to game · Golden hour"].waitForExistence(timeout: 4))
+        app.buttons["Done"].tap()
+        XCTAssertTrue(app.buttons["Trainer"].waitForExistence(timeout: 4))
+        app.terminate()
+        app.launch()
+        XCTAssertTrue(app.buttons["Trainer"].waitForExistence(timeout: 10))
+        app.buttons["Trainer"].tap()
+        XCTAssertTrue(action(5).waitForExistence(timeout: 4))
+        XCTAssertEqual(action(5).value as? String, "OFF")
+    }
+
+    func testTrainerShowsUnavailableWithoutPretendingToApply() {
+        let app = XCUIApplication()
+        app.launchArguments = ["--test-touch-controls", "--trainer-unavailable"]
+        app.launch()
+        XCTAssertTrue(app.buttons["Trainer"].waitForExistence(timeout: 10))
+        app.buttons["Trainer"].tap()
+        XCTAssertTrue(app.staticTexts["Tools unlock when the player is ready and the game menu is closed."].waitForExistence(timeout: 4))
+        let heal = app.descendants(matching: .any).matching(identifier: "trainer.action.1").firstMatch
+        XCTAssertTrue(heal.exists)
+        XCTAssertFalse(heal.isEnabled)
+        XCTAssertFalse(app.staticTexts["Handed to game · Health & armor"].exists)
+    }
+
     func testExtremeRemainsVisibleWithLowAppMemoryLimit() {
         let app = XCUIApplication()
         app.launchEnvironment["PG_SIM_PHYSICAL_MEMORY_MB"] = "12288"

@@ -28,3 +28,19 @@ func PGConfigureEngine(_ options: UnsafePointer<UnsafePointer<CChar>?>, _ count:
 
 func PGSetTextureClarity(_ amount: UInt32) {}
 func PGSetProcessMemoryBudget(_ amount: UInt32) {}
+
+// Simulator-only handoff model, separate from the real engine queue tests.
+private var trainerPreviewStatus: UInt32 = 0
+private var trainerPreviewInvincible = false
+func PGTrainerReady() -> Bool { ProcessInfo.processInfo.arguments.contains("--trainer-unavailable") == false }
+func PGTrainerRequest(_ command: UInt32) -> Bool {
+    guard PGTrainerReady(), (1...15).contains(command), trainerPreviewStatus != 1 else { return false }
+    trainerPreviewStatus = 1
+    DispatchQueue.main.asyncAfter(deadline: .now() + 0.4) {
+        if command == 5 { trainerPreviewInvincible.toggle() }
+        trainerPreviewStatus = 2
+    }
+    return true
+}
+func PGTrainerStatus() -> UInt32 { trainerPreviewStatus }
+func PGTrainerInvincible() -> Bool { trainerPreviewInvincible }

@@ -10,6 +10,7 @@ targets:
       - PreviewApp.swift
       - PreviewAssets.swift
       - PreviewTouchControls.swift
+      - ../App/TrainerViewController.swift
       - ../App/LauncherView.swift
       - ../App/SettingsViewController.swift
       - ../App/GameSettings.swift

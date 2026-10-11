@@ -27,7 +27,7 @@ enum ControlStyle {
     static let accent = UIColor(red: 0.365, green: 0.714, blue: 0.898, alpha: 1)
     /// SF Symbols for controls that have no generated icon.
     static let fallbackSymbol: [String: String] = [
-        "radio": "radio", "look_back": "arrow.uturn.backward", "up": "chevron.up", "down": "chevron.down",
+        "trainer": "slider.horizontal.3", "radio": "radio", "look_back": "arrow.uturn.backward", "up": "chevron.up", "down": "chevron.down",
         "left": "chevron.left", "right": "chevron.right", "accept": "checkmark", "back": "arrow.uturn.left",
         "tab_left": "chevron.left.2", "tab_right": "chevron.right.2", "dive": "arrow.down.to.line",
         "surface": "arrow.up.to.line", "crouch": "figure.walk", "pedal": "bicycle"]
@@ -204,6 +204,7 @@ final class FloatingStick: UIView {
 final class TouchControlsView: UIView {
     var inputChanged: (() -> Void)?
     var openSettings: (() -> Void)?
+    var openTrainer: (() -> Void)?
     private(set) var context = ControlContext.onFoot
 
     private enum Role {
@@ -257,6 +258,7 @@ final class TouchControlsView: UIView {
     private let camera = ControlButton("camera", icon: "camera", label: "Change camera")
     private let phone = ControlButton("phone", icon: "phone", label: "Phone")
     private let pause = ControlButton("pause", icon: "pause", label: "Pause menu")
+    private let trainer = ControlButton("trainer", icon: "trainer", label: "Trainer")
     private let settings = ControlButton("settings", icon: "settings", label: "Settings")
     private let lights = ControlButton("lights", icon: "lights", label: "Headlights")
     private let radio = ControlButton("radio", icon: "radio", label: "Radio")
@@ -272,7 +274,7 @@ final class TouchControlsView: UIView {
 
     private var allButtons: [ControlButton] {
         [fire, aim, leftFire, jump, enter, weapons, reload, cover, crouch, gas, brake, handbrake, driveBy, horn, lookBack,
-         vehicleWeapon, dive, surface, airFire, gear, camera, phone, pause, settings, lights, radio,
+         vehicleWeapon, dive, surface, airFire, gear, camera, phone, pause, trainer, settings, lights, radio,
          up, down, left, right, accept, back, tabLeft, tabRight]
     }
     private var visible: [ControlButton] = []
@@ -307,9 +309,9 @@ final class TouchControlsView: UIView {
     }
 
     private func computeVisible() -> [ControlButton] {
-        let utility: [ControlButton] = context.driving || context.flying ? [radio, lights, camera, phone, pause, settings] : [camera, phone, pause, settings]
-        if context == .menu { return [pause, settings, up, down, left, right, accept, back, tabLeft, tabRight] }
-        if phoneDock { return [camera, phone, pause, settings, up, down, left, right, accept, back] }
+        let utility: [ControlButton] = context.driving || context.flying ? [radio, lights, camera, phone, pause, trainer, settings] : [camera, phone, pause, trainer, settings]
+        if context == .menu { return [pause, trainer, settings, up, down, left, right, accept, back, tabLeft, tabRight] }
+        if phoneDock { return [camera, phone, pause, trainer, settings, up, down, left, right, accept, back] }
         switch context {
         case .onFoot:
             return aimActive ? utility + [fire, aim, enter, weapons, reload, cover, leftFire]
@@ -319,13 +321,13 @@ final class TouchControlsView: UIView {
         case .bike:
             return utility + [gas, brake, handbrake, enter, driveBy, horn, lookBack]
         case .bicycle:
-            return [camera, phone, pause, settings, radio, gas, brake, handbrake, enter, lookBack]
+            return [camera, phone, pause, trainer, settings, radio, gas, brake, handbrake, enter, lookBack]
         case .sub:
             return utility + [gas, brake, enter, dive, surface, lookBack]
         case .heli:
-            return [radio, camera, phone, pause, settings, airFire, vehicleWeapon, enter]
+            return [radio, camera, phone, pause, trainer, settings, airFire, vehicleWeapon, enter]
         case .plane:
-            return [radio, camera, phone, pause, settings, airFire, vehicleWeapon, gear, enter]
+            return [radio, camera, phone, pause, trainer, settings, airFire, vehicleWeapon, gear, enter]
         case .menu:
             return []
         }
@@ -376,7 +378,7 @@ final class TouchControlsView: UIView {
         rightStick.baseDiameter = 128 * scale; rightStick.travel = 52 * scale
 
         // Utility bar, top centre: rare actions in the hard-to-reach zone.
-        let order = [radio, lights, camera, phone, pause, settings]
+        let order = [radio, lights, camera, phone, pause, trainer, settings]
         let bar = order.filter { visible.contains($0) }
         for (i, button) in bar.enumerated() {
             let offset = (CGFloat(i) - CGFloat(bar.count - 1) / 2) * 54 * scale / safe.width
@@ -491,6 +493,8 @@ final class TouchControlsView: UIView {
             phoneDock.toggle()
             lastDockInput = now
             updateVisibility()
+        case trainer:
+            DispatchQueue.main.async { self.openTrainer?() }
         case settings:
             DispatchQueue.main.async { self.openSettings?() }
         case up, down, left, right, accept, back:

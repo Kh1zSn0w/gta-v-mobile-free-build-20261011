@@ -154,6 +154,7 @@ final class NativePortViewController: UIViewController, MTKViewDelegate {
         touchControls.isHidden = true
         touchControls.inputChanged = { [weak self] in self?.pollController() }
         touchControls.openSettings = { [weak self] in self?.showSettings() }
+        touchControls.openTrainer = { [weak self] in self?.showTrainer() }
         view.addSubview(touchControls)
         NSLayoutConstraint.activate([
             touchControls.leadingAnchor.constraint(equalTo: view.leadingAnchor),
@@ -552,6 +553,18 @@ final class NativePortViewController: UIViewController, MTKViewDelegate {
     }
     @objc private func leftApp() { if stableTimer?.isValid != false { GameSettings.shared.markBootInterrupted() } }
 
+    private func showTrainer() {
+        guard engineStarted, presentedViewController == nil else { return }
+        releaseTouchControls()
+        let navigation = UINavigationController(rootViewController: TrainerViewController())
+        LauncherStyle.configure(navigation)
+        navigation.presentationController?.delegate = self
+        navigation.sheetPresentationController?.detents = [.large()]
+        navigation.sheetPresentationController?.prefersGrabberVisible = true
+        navigation.sheetPresentationController?.preferredCornerRadius = 28
+        present(navigation, animated: true)
+    }
+
     private func showSettings(section: LauncherSection? = nil) {
         guard presentedViewController == nil else { return }
         touchControls.reset()
@@ -594,6 +607,11 @@ final class NativePortViewController: UIViewController, MTKViewDelegate {
             touchControls.reset(publish: false)
             lastControllerPoll = nil
             PGUpdateVirtualPad(PGPadState())
+            return
+        }
+        if presentedViewController != nil {
+            PGUpdateVirtualPad(PGPadState())
+            PGResetCameraLook()
             return
         }
         let now = CACurrentMediaTime()
