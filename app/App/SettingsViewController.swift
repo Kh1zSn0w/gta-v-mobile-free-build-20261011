@@ -108,7 +108,7 @@ final class SettingsViewController: UITableViewController {
             }
             if settings.graphicsPreset != bootPreset && engineRunning { text += " Restart needed for \(settings.graphicsPreset.title)." }
             if settings.tier.risky(settings.graphicsPreset) { text += " Presets above the recommended one can run out of memory or overheat on this phone; if a launch fails, the game falls back automatically." }
-            if settings.graphicsPreset == .extreme { text += " Extreme starts at 720p and permits up to 8 GB total app memory with streaming headroom. iOS may allow less; this is a ceiling, not reserved RAM. The engine heap still has its existing 4 GB cap." }
+            if settings.graphicsPreset == .extreme { text += " Extreme starts at 720p. This install reports an app limit of \(settings.tier.memoryLimitMB) MB. Its 8 GB streaming ceiling only applies when iOS allows enough memory; it does not reserve or unlock RAM. If the game cannot launch, the existing fallback lowers the preset." }
             text += " Farther detail and texture clarity increase GPU load. Pixel sharpness also depends on resolution scale and the graphics preset."
             return text
         case .controls:

@@ -1,6 +1,30 @@
 import XCTest
 
 final class LauncherTests: XCTestCase {
+    func testExtremeRemainsVisibleWithLowAppMemoryLimit() {
+        let app = XCUIApplication()
+        app.launchEnvironment["PG_SIM_PHYSICAL_MEMORY_MB"] = "12288"
+        app.launchEnvironment["PG_SIM_MEMORY_LIMIT_MB"] = "3072"
+        app.launch()
+        XCTAssertTrue(app.buttons["launcher.play"].waitForExistence(timeout: 10))
+        app.buttons["launcher.settings.Graphics"].tap()
+        let performance = app.cells["graphics.preset.1"]
+        let extreme = app.cells["graphics.preset.5"]
+        XCTAssertTrue(extreme.waitForExistence(timeout: 4))
+        XCTAssertTrue(app.staticTexts["Battery (recommended)"].exists)
+        XCTAssertGreaterThan(extreme.frame.minY, performance.frame.minY)
+        extreme.tap()
+        XCTAssertEqual(extreme.value as? String, "Selected")
+        XCTAssertTrue(app.staticTexts["Resolution scale 100%"].exists)
+        app.buttons["Done"].tap()
+        app.terminate()
+        app.launch()
+        XCTAssertTrue(app.buttons["launcher.play"].waitForExistence(timeout: 10))
+        app.buttons["launcher.settings.Graphics"].tap()
+        XCTAssertTrue(app.cells["graphics.preset.5"].waitForExistence(timeout: 4))
+        XCTAssertEqual(app.cells["graphics.preset.5"].value as? String, "Selected")
+    }
+
 
     func testExtremePresetUses720pAndPersists() {
         let app = XCUIApplication()

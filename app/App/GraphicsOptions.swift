@@ -50,7 +50,8 @@ struct DeviceTier {
         // cannot get the extra-memory entitlement) only the lightest preset fits.
         memoryLimitMB < 3600 ? .battery : memoryLimitMB < 5000 ? .performance : memoryLimitMB < 7000 ? .balanced : .quality
     }
-    /// Presets that are allowed at all; higher ones are hidden.
+    /// Keep Extreme visible on high-RAM phones even when signing or iOS
+    /// restricts this process. Its warning and live streaming guard still apply.
     var allowed: [GraphicsPreset] {
         let normal: [GraphicsPreset]
         if memoryLimitMB < 3600 { normal = [.battery, .performance] }
@@ -58,7 +59,7 @@ struct DeviceTier {
         else if memoryLimitMB < 7000 { normal = [.battery, .performance, .balanced, .quality] }
         else { normal = [.battery, .performance, .balanced, .quality, .ultra] }
         return GraphicsPreset.displayOrder.filter {
-            normal.contains($0) || ($0 == .extreme && physicalMemoryMB >= 10_240 && memoryLimitMB >= 3600)
+            normal.contains($0) || ($0 == .extreme && physicalMemoryMB >= 10_240)
         }
     }
     /// Presets shown with a warning because they may run out of memory or heat up.
