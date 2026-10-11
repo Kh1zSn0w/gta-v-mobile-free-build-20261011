@@ -4,7 +4,7 @@ final class LauncherTests: XCTestCase {
     func testExtremeRemainsVisibleWithLowAppMemoryLimit() {
         let app = XCUIApplication()
         app.launchEnvironment["PG_SIM_PHYSICAL_MEMORY_MB"] = "12288"
-        app.launchEnvironment["PG_SIM_MEMORY_LIMIT_MB"] = "3072"
+        app.launchEnvironment["PG_SIM_MEMORY_LIMIT_MB"] = "3367"
         app.launch()
         XCTAssertTrue(app.buttons["launcher.play"].waitForExistence(timeout: 10))
         app.buttons["launcher.settings.Graphics"].tap()

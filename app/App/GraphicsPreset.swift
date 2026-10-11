@@ -14,6 +14,12 @@ enum GraphicsPreset: Int, CaseIterable {
          "High-detail 720p for 12 GB devices; up to 8 GB if iOS permits"][rawValue]
     }
 
+    // Total physical RAM is not the app's Jetsam allowance. Keep 720p while
+    // avoiding the high-texture profile when this install has less headroom.
+    func resourcePreset(memoryLimitMB: Int) -> GraphicsPreset {
+        self == .extreme && memoryLimitMB < 5000 ? .balanced : self
+    }
+
     // Keep unsupported MSAA, tessellation and depth of field disabled.
     var engineOptions: [String] {
         switch self {

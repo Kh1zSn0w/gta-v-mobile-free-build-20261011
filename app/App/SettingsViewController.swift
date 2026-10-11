@@ -108,7 +108,7 @@ final class SettingsViewController: UITableViewController {
             }
             if settings.graphicsPreset != bootPreset && engineRunning { text += " Restart needed for \(settings.graphicsPreset.title)." }
             if settings.tier.risky(settings.graphicsPreset) { text += " Presets above the recommended one can run out of memory or overheat on this phone; if a launch fails, the game falls back automatically." }
-            if settings.graphicsPreset == .extreme { text += " Extreme starts at 720p. This install reports an app limit of \(settings.tier.memoryLimitMB) MB. Its 8 GB streaming ceiling only applies when iOS allows enough memory; it does not reserve or unlock RAM. If the game cannot launch, the existing fallback lowers the preset." }
+            if settings.graphicsPreset == .extreme { text += " Extreme starts at 720p and adapts texture and effect settings to the app allowance. This install reports an app limit of \(settings.tier.memoryLimitMB) MB. Its 8 GB streaming ceiling only applies when iOS allows enough memory; it does not reserve or unlock RAM. If the game cannot launch, the existing fallback lowers the preset." }
             text += " Farther detail and texture clarity increase GPU load. Pixel sharpness also depends on resolution scale and the graphics preset."
             return text
         case .controls:
@@ -139,6 +139,9 @@ final class SettingsViewController: UITableViewController {
                 content.text = preset.title + (preset == settings.tier.recommended ? " (recommended)" : "")
                 cell.accessibilityIdentifier = "graphics.preset.\(preset.rawValue)"
                 content.secondaryText = "\(preset.height)p · " + preset.detail
+                if preset == .extreme && preset.resourcePreset(memoryLimitMB: settings.tier.memoryLimitMB) != .extreme {
+                    content.secondaryText = "720p · Detail adapts to this install's \(settings.tier.memoryLimitMB) MB allowance"
+                }
                 cell.accessoryType = preset == settings.graphicsPreset ? .checkmark : .none
                 cell.accessibilityValue = preset == settings.graphicsPreset ? "Selected" : nil
             } else {

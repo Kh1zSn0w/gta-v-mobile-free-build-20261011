@@ -46,6 +46,13 @@ import Foundation
         assert(extreme.contains("-textureQuality=1") && extreme.contains("-shaderQuality=1"))
         assert(extreme.contains("-percentageForStreamer=0.80"))
         assert(GraphicsPreset.balanced.processBudgetMB == 0)
+        assert(GraphicsPreset.extreme.resourcePreset(memoryLimitMB: 3367) == .balanced)
+        assert(GraphicsPreset.extreme.resourcePreset(memoryLimitMB: 4999) == .balanced)
+        assert(GraphicsPreset.extreme.resourcePreset(memoryLimitMB: 5000) == .extreme)
+        assert(GraphicsPreset.extreme.resourcePreset(memoryLimitMB: 9000) == .extreme)
+        assert(GraphicsPreset.performance.resourcePreset(memoryLimitMB: 3367) == .performance)
+        assert(GraphicsPreset.extreme.height == 720)
+        print("EXTREME ALLOWANCE CHECKS PASSED: 3367 MB and high-memory profiles retain 720p.")
         print("EXTREME PRESET CHECKS PASSED: stable saved values, 720p, high detail and 8 GB ceiling.")
     }
 }

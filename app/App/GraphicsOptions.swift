@@ -83,12 +83,13 @@ enum GraphicsConfiguration {
     static func apply(_ settings: GameSettings, screen: CGSize) -> String {
         let preset = settings.graphicsPreset
         let (width, height) = size(for: preset, scale: settings.resolutionScale, screen: screen, matchScreenShape: settings.matchScreenShape)
-        var options = preset.engineOptions
-        if settings.sharperWorld && preset.rawValue >= GraphicsPreset.balanced.rawValue {
+        let resourcePreset = preset.resourcePreset(memoryLimitMB: settings.tier.memoryLimitMB)
+        var options = resourcePreset.engineOptions
+        if settings.sharperWorld && resourcePreset.rawValue >= GraphicsPreset.balanced.rawValue {
             // Increase the distance at which detailed geometry is drawn.
             // Keep textures at the original size on memory-constrained devices.
             let level: (lod: String, ped: String, vehicle: String)
-            switch preset {
+            switch resourcePreset {
             case .balanced: level = ("0.30", "0.10", "0.10")
             case .quality:  level = ("0.50", "0.30", "0.30")
             case .ultra:    level = ("0.70", "0.50", "0.50")
@@ -105,7 +106,7 @@ enum GraphicsConfiguration {
                     options[index] = prefix + value
                 }
             }
-            if preset == .balanced && settings.tier.memoryLimitMB >= 5000,
+            if resourcePreset == .balanced && settings.tier.memoryLimitMB >= 5000,
                let index = options.firstIndex(where: { $0.hasPrefix("-textureQuality=") }) {
                 options[index] = "-textureQuality=1"
             }
