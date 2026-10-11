@@ -1,0 +1,37 @@
+name: Free personal iPhone build
+on:
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: personal-native-build
+  cancel-in-progress: false
+jobs:
+  native:
+    runs-on: macos-15
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install build tools
+        run: brew install xcodegen
+      - name: Check camera delivery and stereo audio
+        run: bash app/Scripts/check_interaction_audio.sh
+      - name: Verify swipe camera math
+        run: |
+          swiftc app/App/SwipeLook.swift app/UIPreview/SwipeMathChecks.swift -o /tmp/pg-swipe-checks
+          /tmp/pg-swipe-checks
+      - name: Verify build inputs
+        run: python3 app/Scripts/fetch_release_inputs.py
+      - name: Install Metal compiler if required
+        run: xcrun -sdk iphoneos metal --version > /dev/null 2>&1 || xcodebuild -downloadComponent MetalToolchain
+      - name: Compile personal iPhone app
+        env:
+          PG_INPUT_MIRROR: Build/Inputs/mirror
+          JOBS: '2'
+        run: bash build_ipa.sh http://192.168.1.115:8000
+      - name: Deliver IPA and diagnostics privately
+        if: always()
+        env:
+          PRIVATE_DELIVERY_TOKEN: ${{ secrets.PRIVATE_DELIVERY_TOKEN }}
+          BUILD_RESULT: ${{ job.status }}
+        run: python3 private_delivery.py

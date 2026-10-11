@@ -1,0 +1,57 @@
+name: LauncherPreview
+options:
+  deploymentTarget:
+    iOS: "17.0"
+targets:
+  LauncherPreview:
+    type: application
+    platform: iOS
+    sources:
+      - PreviewApp.swift
+      - PreviewAssets.swift
+      - PreviewTouchControls.swift
+      - ../App/LauncherView.swift
+      - ../App/SettingsViewController.swift
+      - ../App/GameSettings.swift
+      - ../App/SwipeLook.swift
+      - ../App/TouchControlsView.swift
+      - ../App/VirtualPad.swift
+      - ../App/GraphicsOptions.swift
+      - ../App/GyroInput.swift
+      - path: ../Resources/LauncherArtwork.jpg
+        buildPhase: resources
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: io.github.playgta5ios.launcher-preview
+        SWIFT_VERSION: "5.0"
+        TARGETED_DEVICE_FAMILY: "1"
+        CODE_SIGNING_ALLOWED: NO
+        GENERATE_INFOPLIST_FILE: YES
+    info:
+      path: PreviewInfo.plist
+      properties:
+        CFBundleDisplayName: Launcher Preview
+        UILaunchScreen: {}
+        UIRequiresFullScreen: true
+        UISupportedInterfaceOrientations:
+          - UIInterfaceOrientationPortrait
+          - UIInterfaceOrientationLandscapeLeft
+          - UIInterfaceOrientationLandscapeRight
+  LauncherTests:
+    type: bundle.ui-testing
+    platform: iOS
+    sources: Tests
+    dependencies:
+      - target: LauncherPreview
+    settings:
+      base:
+        GENERATE_INFOPLIST_FILE: YES
+        CODE_SIGNING_ALLOWED: NO
+schemes:
+  LauncherPreview:
+    build:
+      targets:
+        LauncherPreview: all
+    test:
+      targets:
+        - LauncherTests
