@@ -539,8 +539,10 @@ static Alloc constantBuffer(Buffer *b, uint32_t need) {
 		Alloc a;
 		if (stable) {
 			b->cbStable = [R->device newBufferWithLength:cap options:MTLResourceStorageModeShared];
-			b->cbStableCap = cap;
-			a = {b->cbStable, 0, (uint8_t *)b->cbStable.contents};
+			if (b->cbStable) {
+				b->cbStableCap = cap;
+				a = {b->cbStable, 0, (uint8_t *)b->cbStable.contents};
+			} else a = frameAlloc(cap);
 		} else a = frameAlloc(cap);
 		memcpy(a.ptr, b->shadow.data(), b->shadow.size());
 		if (cap > b->shadow.size()) memset(a.ptr + b->shadow.size(), 0, cap - b->shadow.size());
