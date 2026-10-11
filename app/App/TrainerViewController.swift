@@ -24,7 +24,7 @@ final class TrainerViewController: UIViewController, UITableViewDataSource, UITa
             .init(command: 2, title: "Weapon loadout", detail: "Equip weapons and ammunition.", badge: "EQUIP"),
             .init(command: 5, title: "Invincibility", detail: "Protect yourself from damage.", badge: "TOGGLE"),
             .init(command: 26, title: "Clear wanted level", detail: "End the police chase.", badge: "CLEAR"),
-            .init(command: 3, title: "Lower wanted level", detail: "Remove one wanted star.", badge: "\u2212 STAR"),
+            .init(command: 3, title: "Lower wanted level", detail: "Remove one wanted star.", badge: "− STAR"),
             .init(command: 4, title: "Raise wanted level", detail: "Add one wanted star.", badge: "+ STAR"),
             .init(command: 27, title: "Refill special ability", detail: "Recharge your character’s special ability.", badge: "REFILL"),
             .init(command: 25, title: "Reset powers", detail: "Turn off every trainer power and restore normal movement.", badge: "RESET")
