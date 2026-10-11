@@ -7,6 +7,31 @@ concurrency:
   group: personal-native-build
   cancel-in-progress: false
 jobs:
+  preview:
+    runs-on: macos-15
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install build tools
+        run: brew install xcodegen
+      - name: Check camera delivery and stereo audio
+        run: bash app/Scripts/check_interaction_audio.sh
+      - name: Verify swipe camera math
+        run: |
+          swiftc app/App/SwipeLook.swift app/UIPreview/SwipeMathChecks.swift -o /tmp/pg-swipe-checks
+          /tmp/pg-swipe-checks
+      - name: Build launcher and real touch overlay preview
+        run: bash app/UIPreview/capture.sh
+      - name: Verify maximum sensitivity persistence and existing controls
+        run: bash app/UIPreview/test.sh
+      - name: Preserve UI test log
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: swipe-ui-tests
+          path: app/UIPreview/ui-tests.log
+          if-no-files-found: ignore
+          retention-days: 3
   native:
     runs-on: macos-15
     timeout-minutes: 90

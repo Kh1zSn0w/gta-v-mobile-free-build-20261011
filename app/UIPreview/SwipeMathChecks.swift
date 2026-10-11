@@ -17,6 +17,12 @@ import Foundation
         input.add(dx: 6, dy: 0)
         let fast = input.consume(elapsed: 1.0 / 60, sensitivity: 3)
         assert(fast.0 > slow.0, "Sensitivity must affect turning speed")
+        input.add(dx: 6, dy: 0)
+        let higher = input.consume(elapsed: 1.0 / 60, sensitivity: 6)
+        input.add(dx: 6, dy: 0)
+        let maximum = input.consume(elapsed: 1.0 / 60, sensitivity: 12)
+        assert(higher.0 == fast.0 * 2 && maximum.0 == fast.0 * 4,
+               "High sensitivities must not be clipped to the former 4x limit")
         input.add(dx: 100, dy: 100)
         input.reset()
         assert(input.consume(elapsed: 1.0 / 60, sensitivity: 1) == (0, 0),

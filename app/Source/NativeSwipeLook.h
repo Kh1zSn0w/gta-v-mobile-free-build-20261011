@@ -22,9 +22,32 @@ static inline float pg_swipe_axis(int32_t travel, double seconds) {
   if (!isfinite(seconds) || seconds <= 0) seconds = 1.0 / 60;
   seconds = fmax(1.0 / 240, fmin(seconds, 0.1));
   double velocity = travel / (256.0 * seconds);
-  double amount = fmin(1, fabs(velocity) / 1200.0);
-  // Compensate for the engine's gamepad dead zone only while moving.
-  return (float)copysign(0.245 + 0.755 * amount, velocity);
+  // Keep swipe speed independently of the pad's byte range. The camera
+  // query applies speeds above one after the engine's controller clamp.
+  return (float)fmax(-8, fmin(8, velocity / 240.0));
+}
+
+static inline float pg_swipe_pad_axis(float speed) {
+  if (!isfinite(speed) || speed == 0) return 0;
+  // The pinned mapper detects axes beyond 0.25. Tiny drags must count too.
+  return copysignf(0.26f + 0.74f * fminf(1, fabsf(speed)), speed);
+}
+
+static inline float pg_swipe_boost_value(float x, float y, uint32_t source,
+    uint32_t axis, uint32_t pad, float value) {
+  if (source != 12 || pad != 0 || value == 0 || !isfinite(value)) return value;
+  float speed;
+  switch (axis) {
+    case 4098: speed = x; break;             // full right X
+    case 4099: speed = -y; break;            // full right Y (down positive)
+    case 4122: speed = fmaxf(0, y); break;   // look up
+    case 4123: speed = fmaxf(0, -y); break;  // look down
+    case 4124: speed = fmaxf(0, -x); break;  // look left
+    case 4125: speed = fmaxf(0, x); break;   // look right
+    default: return value;
+  }
+  if (!isfinite(speed) || fabsf(speed) <= 1 || signbit(speed) != signbit(value)) return value;
+  return value * fminf(8, fabsf(speed));
 }
 
 static inline void pg_swipe_consume(PGSwipeQueue *queue, double seconds, float *x, float *y) {

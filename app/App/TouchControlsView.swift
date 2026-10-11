@@ -603,10 +603,18 @@ final class TouchControlsView: UIView {
         let now = CACurrentMediaTime()
 
         let sensitivity = aimActive ? GameSettings.shared.aimSensitivity : GameSettings.shared.lookSensitivity
+        let weaponWheelOpen = roles.values.contains { role in
+            if case .weaponWheel = role { return true }
+            return false
+        }
         if context == .menu || phoneDock {
             // Retain stick-based navigation for the in-game menu and phone.
             (state.rightX, state.rightY) = Self.cameraStick(lookStick.value, speed: CGFloat(sensitivity))
             swipeLook.reset()
+            PGResetCameraLook()
+        } else if weaponWheelOpen {
+            swipeLook.reset()
+            PGResetCameraLook()
         } else {
             let delta = swipeLook.consume(elapsed: elapsed, sensitivity: sensitivity)
             PGQueueCameraLook(delta.0, delta.1)

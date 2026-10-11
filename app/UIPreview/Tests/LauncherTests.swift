@@ -1,6 +1,25 @@
 import XCTest
 
 final class LauncherTests: XCTestCase {
+    func testMaximumSwipeSensitivityPersists() {
+        let app = XCUIApplication()
+        app.launch()
+        XCTAssertTrue(app.buttons["launcher.play"].waitForExistence(timeout: 10))
+        app.buttons["launcher.settings.Controls"].tap()
+        let look = app.sliders["Look speed"]
+        let aim = app.sliders["Aim look speed"]
+        XCTAssertTrue(look.waitForExistence(timeout: 4))
+        look.adjust(toNormalizedSliderPosition: 1)
+        aim.adjust(toNormalizedSliderPosition: 1)
+        app.buttons["Done"].tap()
+        app.terminate()
+        app.launch()
+        XCTAssertTrue(app.buttons["launcher.play"].waitForExistence(timeout: 10))
+        app.buttons["launcher.settings.Controls"].tap()
+        XCTAssertTrue(look.waitForExistence(timeout: 4))
+        XCTAssertEqual(look.value as? String, "100%")
+        XCTAssertEqual(aim.value as? String, "100%")
+    }
     func testFreeScreenDragReachesCameraWithoutRightStick() {
         XCUIDevice.shared.orientation = .landscapeRight
         defer { XCUIDevice.shared.orientation = .portrait }

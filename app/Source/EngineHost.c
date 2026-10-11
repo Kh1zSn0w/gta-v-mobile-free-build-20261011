@@ -315,12 +315,24 @@ void PGUpdateController(PGControllerState state, double elapsedSeconds) {
 static _Atomic uint64_t virtualPad = 0x0000808080800000ull;
 static _Atomic bool virtualPadActive;
 static PGSwipeQueue swipeQueue;
+static _Atomic float swipeFrameX, swipeFrameY;
 static double lastPadSample;
 void PGQueueCameraLook(float dx, float dy) {
   pg_swipe_add_axis(&swipeQueue.x, dx);
   pg_swipe_add_axis(&swipeQueue.y, dy);
 }
-void PGResetCameraLook(void) { pg_swipe_reset(&swipeQueue); }
+void PGResetCameraLook(void) {
+  pg_swipe_reset(&swipeQueue);
+  atomic_store(&swipeFrameX, 0); atomic_store(&swipeFrameY, 0);
+}
+// Only the active swipe's right-axis bindings bypass the controller speed cap.
+// Other pads, movement axes and all samples after the swipe stops are unchanged.
+float pg_swipe_control_value(uint64_t binding, float value) {
+  if (!env.memory.data || binding > env.memory.size || env.memory.size - binding < 28 || (binding & 3)) return value;
+  const _Atomic uint32_t *fields = (const _Atomic uint32_t *)((const uint8_t *)(void *)env.memory.data + binding);
+  return pg_swipe_boost_value(atomic_load(&swipeFrameX), atomic_load(&swipeFrameY),
+      atomic_load(fields + 4), atomic_load(fields + 5), atomic_load(fields + 6), value);
+}
 static uint8_t pg_pad_axis(float value, bool up) {
   if (!isfinite(value)) return 0x80;
   value = fmaxf(-1, fminf(1, value));
@@ -362,6 +374,7 @@ void pg_virtual_pad_apply(w2c_game *instance, uint64_t pad) {
   float swipeX, swipeY;
   pg_swipe_consume(&swipeQueue, lastPadSample ? now - lastPadSample : 1.0 / 60, &swipeX, &swipeY);
   lastPadSample = now;
+  atomic_store(&swipeFrameX, swipeX); atomic_store(&swipeFrameY, swipeY);
   uint8_t *base = pg_pointer(&env, pad, 136);
   _Atomic uint32_t *buttons = (_Atomic uint32_t *)(base + 12);
   uint32_t bits = (uint32_t)(packed & 0xffff);
@@ -375,8 +388,8 @@ void pg_virtual_pad_apply(w2c_game *instance, uint64_t pad) {
   if (swipeX != 0 || swipeY != 0) {
     float padX = ((int)((packed >> 32) & 255) - 127.5f) / 127.5f;
     float padY = (127.5f - (int)((packed >> 40) & 255)) / 127.5f;
-    if (fabsf(swipeX) > fabsf(padX)) atomic_store((_Atomic uint8_t *)(base + 22), pg_pad_axis(swipeX, false));
-    if (fabsf(swipeY) > fabsf(padY)) atomic_store((_Atomic uint8_t *)(base + 23), pg_pad_axis(swipeY, true));
+    if (fabsf(swipeX) > fabsf(padX)) atomic_store((_Atomic uint8_t *)(base + 22), pg_pad_axis(pg_swipe_pad_axis(swipeX), false));
+    if (fabsf(swipeY) > fabsf(padY)) atomic_store((_Atomic uint8_t *)(base + 23), pg_pad_axis(pg_swipe_pad_axis(swipeY), true));
   }
   atomic_store((_Atomic uint8_t *)(base + 24), l2);
   atomic_store((_Atomic uint8_t *)(base + 25), r2);

@@ -77,13 +77,13 @@ targets:
       path: App/Info.plist
       properties:
         CFBundleDisplayName: GTA V Port
-        CFBundleShortVersionString: "1.5"
+        CFBundleShortVersionString: "1.6"
         # Your game-file server may be a plain-http address on your tailnet.
         NSAppTransportSecurity:
           NSAllowsArbitraryLoads: true
         # Filled in by the cloud build so you don't have to type it.
         PGDefaultAssetServer: ""
-        CFBundleVersion: "6"
+        CFBundleVersion: "7"
         CADisableMinimumFrameDurationOnPhone: true
         NSLocalNetworkUsageDescription: "Connect to your Windows PC to load your GTA V game files."
         UILaunchScreen: {}

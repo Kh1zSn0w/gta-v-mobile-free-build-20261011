@@ -19,7 +19,7 @@ struct SwipeLook {
     mutating func consume(elapsed: Double, sensitivity: Double) -> (Float, Float) {
         defer { reset() }
         guard elapsed.isFinite, elapsed > 0 else { return (0, 0) }
-        let speed = max(0.3, min(4.0, sensitivity))
+        let speed = max(0.3, min(12.0, sensitivity))
         // Queue travel, not a one-callback stick pulse. The engine converts it
         // using its own input interval, even when UI and game FPS differ.
         return (Float(max(-4096, min(4096, dx * speed))),

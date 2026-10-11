@@ -195,10 +195,10 @@ final class SettingsViewController: UITableViewController {
             cell.selectionStyle = .none
             switch indexPath.row {
             case 0:
-                cell.accessoryView = slider(settings.lookSensitivity, 0.3, 3, label: "Look speed") { [weak self] in self?.settings.lookSensitivity = $0 }
+                cell.accessoryView = slider(settings.lookSensitivity, 0.3, 12, label: "Look speed") { [weak self] in self?.settings.lookSensitivity = $0 }
                 content.text = "Swipe look sensitivity"
             case 5:
-                cell.accessoryView = slider(settings.aimSensitivity, 0.3, 4, label: "Aim look speed") { [weak self] in self?.settings.aimSensitivity = $0 }
+                cell.accessoryView = slider(settings.aimSensitivity, 0.3, 12, label: "Aim look speed") { [weak self] in self?.settings.aimSensitivity = $0 }
                 content.text = "Aim swipe sensitivity"
             case 1:
                 cell.accessoryView = slider(settings.controlScale, 0.7, 1.5, label: "Button size") { [weak self] in self?.settings.controlScale = $0; self?.controlsChanged?() }
