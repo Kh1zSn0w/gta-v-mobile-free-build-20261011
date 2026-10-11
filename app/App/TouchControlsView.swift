@@ -602,7 +602,7 @@ final class TouchControlsView: UIView {
         var held = PadButtons()
         let now = CACurrentMediaTime()
 
-        let sensitivity = aimActive ? GameSettings.shared.aimSensitivity : GameSettings.shared.lookSensitivity
+        let sensitivity = aiming ? GameSettings.shared.aimSensitivity : GameSettings.shared.lookSensitivity
         let weaponWheelOpen = roles.values.contains { role in
             if case .weaponWheel = role { return true }
             return false

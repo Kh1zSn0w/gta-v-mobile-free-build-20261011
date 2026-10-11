@@ -1,19 +1,19 @@
-"""Compile the actual patched engine queries against a small test memory."""
+"""Compile the actual mouse/pad mapper and camera queries against test memory."""
 from pathlib import Path
 import re
 import subprocess
 
 root = Path(__file__).resolve().parents[1]
 functions = []
-for index in [10518, 10519, 10521]:
-    signature = f'f32 w2c_game_f{index}(w2c_game* instance, u64 var_p0, u64 var_p1) {{'
+for index in [10490, 10518, 10519, 10521]:
+    signature = ('void w2c_game_f10490(w2c_game* instance, u64 var_p0, u32 var_p1, u32 var_p2) {' if index == 10490 else f'f32 w2c_game_f{index}(w2c_game* instance, u64 var_p0, u64 var_p1) {{')
     matches = [p for p in (root / 'Generated').glob('game_*.c') if signature in p.read_text()]
     if len(matches) != 1: raise RuntimeError('Missing patched query ' + str(index))
     text = matches[0].read_text()
     start = text.index(signature)
     end = text.index('\n}', start) + 2
     function = text[start:end]
-    assert function.count('pg_swipe_control_value(var_p0, var_f0)') == 1
+    assert 'pg_swipe_control_value' not in function
     functions.append(function)
 probe = root / 'Build/Probe'
 probe.mkdir(parents=True, exist_ok=True)

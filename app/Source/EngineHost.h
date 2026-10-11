@@ -42,7 +42,7 @@ typedef struct {
   float leftX, leftY, rightX, rightY, leftTrigger, rightTrigger;
 } PGPadState;
 void PGUpdateVirtualPad(PGPadState state);
-// Swipe travel survives UI polls until the engine reads pad 0.
+// Direct touch travel survives UI polls, then enters the relative mouse camera path.
 void PGQueueCameraLook(float dx, float dy);
 void PGResetCameraLook(void);
 // The engine's last input device for the player: -4 keyboard/mouse,

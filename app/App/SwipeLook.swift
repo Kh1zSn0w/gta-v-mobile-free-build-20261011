@@ -20,8 +20,8 @@ struct SwipeLook {
         defer { reset() }
         guard elapsed.isFinite, elapsed > 0 else { return (0, 0) }
         let speed = max(0.3, min(12.0, sensitivity))
-        // Queue travel, not a one-callback stick pulse. The engine converts it
-        // using its own input interval, even when UI and game FPS differ.
+        // One finger distance produces one camera delta, regardless of frame rate.
+        // The native bridge uses mouse input, keeping fractional small gestures.
         return (Float(max(-4096, min(4096, dx * speed))),
                 Float(max(-4096, min(4096, -dy * speed))))
     }

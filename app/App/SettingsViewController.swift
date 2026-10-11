@@ -79,7 +79,7 @@ final class SettingsViewController: UITableViewController {
     override func tableView(_ tableView: UITableView, numberOfRowsInSection section: Int) -> Int {
         switch sections[section] {
         case .mode: return GameMode.allCases.count
-        case .graphics: return settings.tier.allowed.count + 4
+        case .graphics: return settings.tier.allowed.count + 6
         case .controls: return 6
         case .gyro: return (settings.gyroAim == .off ? 1 : 3) + (settings.tiltSteer == .off ? 1 : 2)
         case .files: return fileRows.count
@@ -102,15 +102,16 @@ final class SettingsViewController: UITableViewController {
             return text
         case .graphics:
             var text = "Resolution changes apply right away. "
-            text += engineRunning ? "Graphics preset, world detail and FPS changes apply next launch." : "Graphics preset, world detail and FPS apply on Play."
+            text += engineRunning ? "Graphics preset, distance, texture clarity and FPS changes apply next launch." : "Graphics preset, distance, texture clarity and FPS apply on Play."
             if settings.frameRateOption == .fps120 {
                 text += " 120 FPS is an experimental high refresh target. The native engine runs unlocked in this mode; actual FPS may be lower and power use may rise."
             }
             if settings.graphicsPreset != bootPreset && engineRunning { text += " Restart needed for \(settings.graphicsPreset.title)." }
             if settings.tier.risky(settings.graphicsPreset) { text += " Presets above the recommended one can run out of memory or overheat on this phone; if a launch fails, the game falls back automatically." }
+            text += " Farther detail and texture clarity increase GPU load. Pixel sharpness also depends on resolution scale and the graphics preset."
             return text
         case .controls:
-            return "Drag the right side of the screen to look around. Stopping your finger stops the camera. You can also drag from Aim or Fire while holding those actions. Left stick still moves your character."
+            return "Direct touch look: finger distance controls camera distance, with no stick dead zone or acceleration. Stopping your finger stops the camera. You can also drag from Aim or Fire while holding those actions. Left stick still moves your character."
         case .gyro:
             return "Move the phone to fine-tune your aim; turning your body turns the camera. Tilt steering turns the phone like a steering wheel: Assist adds fine control on top of the touch steering, Tilt to steer replaces it. The straight-ahead angle is however you hold the phone when you get in."
         case .files: return filesFooter()
@@ -180,7 +181,7 @@ final class SettingsViewController: UITableViewController {
                     button.showsMenuAsPrimaryAction = true
                     button.sizeToFit()
                     cell.accessoryView = button
-                } else {
+                } else if row == 3 {
                     content.text = "Sharper textures & models"
                     content.secondaryText = "Finer model detail farther away; higher textures if memory allows."
                     let detail = toggle(settings.sharperWorld, label: "Sharper textures and models") { [weak self] in
@@ -189,6 +190,31 @@ final class SettingsViewController: UITableViewController {
                     }
                     detail.isEnabled = settings.graphicsPreset.rawValue >= GraphicsPreset.balanced.rawValue
                     cell.accessoryView = detail
+                } else {
+                    let distance = row == 4
+                    content.text = distance ? "View distance" : "Distant texture clarity"
+                    content.secondaryText = distance ? "Keep detailed models farther away; Far uses more memory." : "Sharper roads and surfaces at angles; keeps original texture sizes."
+                    let button = UIButton(configuration: .gray())
+                    button.configuration?.title = distance ? settings.viewDistance.title : settings.textureClarity.title
+                    button.accessibilityIdentifier = distance ? "graphics.distance" : "graphics.texture-clarity"
+                    if distance {
+                        button.menu = UIMenu(children: ViewDistance.allCases.map { option in
+                            UIAction(title: option.title, state: option == settings.viewDistance ? .on : .off) { [weak self] _ in
+                                self?.settings.viewDistance = option
+                                self?.reload(.graphics)
+                            }
+                        })
+                    } else {
+                        button.menu = UIMenu(children: TextureClarity.allCases.map { option in
+                            UIAction(title: option.title, state: option == settings.textureClarity ? .on : .off) { [weak self] _ in
+                                self?.settings.textureClarity = option
+                                self?.reload(.graphics)
+                            }
+                        })
+                    }
+                    button.showsMenuAsPrimaryAction = true
+                    button.sizeToFit()
+                    cell.accessoryView = button
                 }
             }
         case .controls:

@@ -147,6 +147,15 @@ final class GameSettings {
         set { defaults.set(newValue, forKey: "sharperWorld") }
     }
 
+    var viewDistance: ViewDistance {
+        get { (defaults.object(forKey: "viewDistance") as? Int).flatMap(ViewDistance.init) ?? .extended }
+        set { defaults.set(newValue.rawValue, forKey: "viewDistance") }
+    }
+    var textureClarity: TextureClarity {
+        get { (defaults.object(forKey: "textureClarity") as? Int).flatMap(TextureClarity.init) ?? .clear }
+        set { defaults.set(newValue.rawValue, forKey: "textureClarity") }
+    }
+
     // Crash fallback: a launch that never reached a stable world is treated
     // as a memory kill, and the last preset that worked is restored.
     private var bootPending: Bool {

@@ -13,6 +13,7 @@
 #include "MRPipelineArchive.h"
 #include "BCTextureDecoder.h"
 #include "NativeFrameRate.h"
+#include "NativeTextureClarity.h"
 #import <UIKit/UIKit.h>
 #include <TargetConditionals.h>
 #include <pthread.h>
@@ -22,6 +23,7 @@
 #include <cmath>
 
 namespace mr {
+static std::atomic<uint32_t> textureClarity{4};
 
 Texture::~Texture() { delete depthProxy; }
 
@@ -368,8 +370,14 @@ static void makeSamplers(State *s) {
 	d.lodMinClamp = minLod; d.lodMaxClamp = std::max(minLod, maxLod);
 	if (filter & 0x80) d.compareFunction = w[6] >= 1 && w[6] <= 8 ? (MTLCompareFunction)(w[6] - 1) : MTLCompareFunctionAlways;
 	if (aniso) { d.magFilter = d.minFilter = MTLSamplerMinMagFilterLinear; d.mipFilter = MTLSamplerMipFilterLinear; d.maxAnisotropy = std::max(1u, std::min(16u, w[5])); }
+	MTLSamplerMipFilter originalMip = d.mipFilter;
+	uint32_t clarity = pg_texture_anisotropy(filter, w[1], w[2], w[5], textureClarity.load());
+	if (clarity > d.maxAnisotropy) {
+		d.maxAnisotropy = clarity;
+		d.mipFilter = MTLSamplerMipFilterLinear;
+	}
 	s->sampler = [R->device newSamplerStateWithDescriptor:d];
-	d.magFilter = d.minFilter = MTLSamplerMinMagFilterNearest; d.maxAnisotropy = 1;
+	d.magFilter = d.minFilter = MTLSamplerMinMagFilterNearest; d.maxAnisotropy = 1; d.mipFilter = originalMip;
 	s->samplerNearest = [R->device newSamplerStateWithDescriptor:d];
 }
 
@@ -1885,6 +1893,7 @@ using namespace mr;
 static CAMetalLayer *pendingLayer;
 
 extern "C" void PGMetalRendererAttachLayer(void *layer) { pendingLayer = (__bridge CAMetalLayer *)layer; }
+extern "C" void PGSetTextureClarity(uint32_t amount) { mr::textureClarity.store(amount == 4 || amount == 8 ? amount : 0); }
 
 extern "C" bool PGMetalRendererAvailable(void) {
 #if TARGET_OS_SIMULATOR

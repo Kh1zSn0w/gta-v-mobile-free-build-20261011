@@ -25,3 +25,5 @@ final class AssetPreloader {
     static func formatDuration(_ seconds: Double) -> String { "\(Int(seconds))s" }
 }
 func PGConfigureEngine(_ options: UnsafePointer<UnsafePointer<CChar>?>, _ count: UInt32, _ width: Int32, _ height: Int32, _ interval: Int32) {}
+
+func PGSetTextureClarity(_ amount: UInt32) {}

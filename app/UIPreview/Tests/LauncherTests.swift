@@ -1,6 +1,29 @@
 import XCTest
 
 final class LauncherTests: XCTestCase {
+    func testDistanceAndTextureClarityPersist() {
+        let app = XCUIApplication()
+        app.launch()
+        XCTAssertTrue(app.buttons["launcher.play"].waitForExistence(timeout: 10))
+        app.buttons["launcher.settings.Graphics"].tap()
+        let distance = app.buttons["graphics.distance"]
+        for _ in 0..<4 where !distance.isHittable { app.swipeUp() }
+        XCTAssertTrue(distance.isHittable)
+        distance.tap()
+        app.buttons["Far"].tap()
+        let clarity = app.buttons["graphics.texture-clarity"]
+        for _ in 0..<4 where !clarity.isHittable { app.swipeUp() }
+        clarity.tap()
+        app.buttons["8×"].tap()
+        app.buttons["Done"].tap()
+        app.terminate()
+        app.launch()
+        XCTAssertTrue(app.buttons["launcher.play"].waitForExistence(timeout: 10))
+        app.buttons["launcher.settings.Graphics"].tap()
+        for _ in 0..<4 where !distance.isHittable { app.swipeUp() }
+        XCTAssertEqual(distance.label, "Far")
+        XCTAssertEqual(clarity.label, "8×")
+    }
     func testMaximumSwipeSensitivityPersists() {
         let app = XCUIApplication()
         app.launch()

@@ -4,6 +4,7 @@
 #include "NativeEngineConfiguration.h"
 #include "NativeControllerLook.h"
 #include "NativeSwipeLook.h"
+#include "NativeTouchMouse.h"
 #include "NativeAudioRing.h"
 #include "NativeTouchContext.h"
 #include <stdio.h>
@@ -315,23 +316,20 @@ void PGUpdateController(PGControllerState state, double elapsedSeconds) {
 static _Atomic uint64_t virtualPad = 0x0000808080800000ull;
 static _Atomic bool virtualPadActive;
 static PGSwipeQueue swipeQueue;
-static _Atomic float swipeFrameX, swipeFrameY;
-static double lastPadSample;
+static _Atomic bool touchMouseFrame;
 void PGQueueCameraLook(float dx, float dy) {
   pg_swipe_add_axis(&swipeQueue.x, dx);
   pg_swipe_add_axis(&swipeQueue.y, dy);
 }
 void PGResetCameraLook(void) {
   pg_swipe_reset(&swipeQueue);
-  atomic_store(&swipeFrameX, 0); atomic_store(&swipeFrameY, 0);
+  atomic_store(&touchMouseFrame, false);
 }
-// Only the active swipe's right-axis bindings bypass the controller speed cap.
-// Other pads, movement axes and all samples after the swipe stops are unchanged.
-float pg_swipe_control_value(uint64_t binding, float value) {
-  if (!env.memory.data || binding > env.memory.size || env.memory.size - binding < 28 || (binding & 3)) return value;
-  const _Atomic uint32_t *fields = (const _Atomic uint32_t *)((const uint8_t *)(void *)env.memory.data + binding);
-  return pg_swipe_boost_value(atomic_load(&swipeFrameX), atomic_load(&swipeFrameY),
-      atomic_load(fields + 4), atomic_load(fields + 5), atomic_load(fields + 6), value);
+// Only camera swipes select the mouse camera path. Pad buttons and analog
+// movement remain in the engine's normal mapper; a real right stick wins.
+void pg_touch_mouse_finish(void) {
+  if (atomic_load(&touchMouseFrame) && env.memory.data && env.memory.size >= 24627140)
+    atomic_store((_Atomic int32_t *)((uint8_t *)(void *)env.memory.data + 24627136), -4);
 }
 static uint8_t pg_pad_axis(float value, bool up) {
   if (!isfinite(value)) return 0x80;
@@ -370,11 +368,13 @@ void pg_virtual_pad_apply(w2c_game *instance, uint64_t pad) {
   if (pad == 12840656) pg_apply_targeting_mode(instance);
   if (pad != 12840656 || !atomic_load(&virtualPadActive)) return;
   uint64_t packed = atomic_load(&virtualPad);
-  double now = timeMS(CLOCK_MONOTONIC) / 1000.0;
-  float swipeX, swipeY;
-  pg_swipe_consume(&swipeQueue, lastPadSample ? now - lastPadSample : 1.0 / 60, &swipeX, &swipeY);
-  lastPadSample = now;
-  atomic_store(&swipeFrameX, swipeX); atomic_store(&swipeFrameY, swipeY);
+  float travelX, travelY;
+  pg_swipe_consume(&swipeQueue, &travelX, &travelY);
+  float padX = ((int)((packed >> 32) & 255) - 127.5f) / 127.5f;
+  float padY = (127.5f - (int)((packed >> 40) & 255)) / 127.5f;
+  bool touchLook = fabsf(padX) < .05f && fabsf(padY) < .05f &&
+      pg_touch_mouse_apply((uint8_t *)(void *)env.memory.data, env.memory.size, travelX, travelY);
+  atomic_store(&touchMouseFrame, touchLook);
   uint8_t *base = pg_pointer(&env, pad, 136);
   _Atomic uint32_t *buttons = (_Atomic uint32_t *)(base + 12);
   uint32_t bits = (uint32_t)(packed & 0xffff);
@@ -383,14 +383,6 @@ void pg_virtual_pad_apply(w2c_game *instance, uint64_t pad) {
   if (l2 > 30) bits |= 1; if (r2 > 30) bits |= 2;
   atomic_store(buttons, atomic_load(buttons) | bits);
   for (int i = 0; i < 4; i++) atomic_store((_Atomic uint8_t *)(base + 20 + i), (uint8_t)(packed >> (16 + 8 * i)));
-  // Do not let a neutral UI sample erase pending swipe input. Physical pad
-  // deflection still wins if stronger, and weapon-wheel axes stay unchanged.
-  if (swipeX != 0 || swipeY != 0) {
-    float padX = ((int)((packed >> 32) & 255) - 127.5f) / 127.5f;
-    float padY = (127.5f - (int)((packed >> 40) & 255)) / 127.5f;
-    if (fabsf(swipeX) > fabsf(padX)) atomic_store((_Atomic uint8_t *)(base + 22), pg_pad_axis(pg_swipe_pad_axis(swipeX), false));
-    if (fabsf(swipeY) > fabsf(padY)) atomic_store((_Atomic uint8_t *)(base + 23), pg_pad_axis(pg_swipe_pad_axis(swipeY), true));
-  }
   atomic_store((_Atomic uint8_t *)(base + 24), l2);
   atomic_store((_Atomic uint8_t *)(base + 25), r2);
 }

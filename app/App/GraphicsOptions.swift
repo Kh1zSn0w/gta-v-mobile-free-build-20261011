@@ -130,6 +130,8 @@ enum GraphicsConfiguration {
                 options[index] = "-textureQuality=1"
             }
         }
+        options = settings.viewDistance.apply(to: options)
+        PGSetTextureClarity(UInt32(settings.textureClarity.rawValue))
         var pointers = options.map { strdup($0) }
         defer { pointers.forEach { free($0) } }
         pointers.withUnsafeMutableBufferPointer { buffer in
