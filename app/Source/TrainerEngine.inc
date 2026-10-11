@@ -36,7 +36,7 @@ void w2c_game_f50156(w2c_game *, u32, u32);
 float w2c_game_f50032(w2c_game *, u32);
 void w2c_game_f52941(w2c_game *, u32);
 
-static const char *const trainerVehicles[] = {"adder","zentorno","t20","osiris","entityxf","infernus","vacca","voltic","cheetah","bullet","banshee","buffalo","elegy2","jester","massacro","sultan","futo","sentinel","dominator","gauntlet","dukes","sandking","rebel","bifta","blazer","bati","akuma","hakuchou","vader","bmx","police","ambulance","firetruk","rhino","buzzard","frogger","lazer","duster","stunt","dinghy"};
+static const char *const trainerVehicles[] = {"adder","zentorno","coquette","carbonizzare","entityxf","infernus","vacca","voltic","cheetah","bullet","banshee","buffalo","elegy2","jester","massacro","sultan","futo","sentinel","dominator","gauntlet","dukes","sandking","rebel","bifta","blazer","bati","akuma","hakuchou","vader","bmx","police","ambulance","firetruk","rhino","buzzard","frogger","lazer","duster","stunt","dinghy"};
 static const char *const trainerWeather[] = {"EXTRASUNNY","CLEAR","CLOUDS","OVERCAST","RAIN","THUNDER","FOGGY","SMOG","CLEARING","SNOW","BLIZZARD","XMAS"};
 
 static PGTrainerQueue trainerQueue;
