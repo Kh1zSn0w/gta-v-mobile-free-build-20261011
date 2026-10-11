@@ -70,8 +70,16 @@ end = text.index('\n}', start) + 2
 function = text[start:end]
 for marker in ['20156136ull', '20156137ull', 'w2c_game_f37635(instance);', 'w2c_game_f37634(instance);']:
     if marker not in function: raise RuntimeError('Pinned cheat update body changed: ' + marker)
-if sum(text.count('w2c_game_f37654(instance);') for text in units.values()) < 1:
-    raise RuntimeError('Cheat update has no engine callers')
+# This update is registered with the engine scheduler as callback 27406,
+# rather than called directly. Check the table entry and real registration.
+all_units = [unit.read_text() for unit in (root / 'Generated').glob('game*.c')]
+if not any('(wasm_rt_function_ptr_t)wrap_w2c_game_f37654' in body for body in all_units):
+    raise RuntimeError('Cheat update callback table entry changed')
+registration = ('  var_j0 = 27406ull;\n  var_j1 = var_l4;\n  var_j2 = 512ull;\n'
+                '  var_j1 += var_j2;\n  var_i2 = 0u;\n'
+                '  w2c_game_f8883(instance, var_j0, var_j1, var_i2);')
+if not any(registration in body for body in units.values()):
+    raise RuntimeError('Cheat update scheduler registration changed')
 old = '  FUNC_EPILOGUE;\n}'
 new = '  pg_trainer_tick(instance);\n' + old
 if new not in function:
