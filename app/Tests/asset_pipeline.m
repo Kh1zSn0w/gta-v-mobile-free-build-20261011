@@ -41,7 +41,8 @@ int main(void){@autoreleasepool {
   assert([[NSFileManager defaultManager] createDirectoryAtPath:packedRoot withIntermediateDirectories:YES attributes:nil error:nil]);
   assert([[fixture subdataWithRange:NSMakeRange(0,4096)] writeToFile:[legacy stringByAppendingPathComponent:@"0"] options:NSDataWritingAtomic error:nil]);
   NSURLSessionConfiguration *configuration=[NSURLSessionConfiguration ephemeralSessionConfiguration];configuration.timeoutIntervalForRequest=10;
-  const char *server=getenv("PG_ASSET_TEST_SERVER");assert(server&&*server);PGSetAssetServer(server);
+  const char *server=getenv("PG_ASSET_TEST_SERVER");assert(server&&*server);PGSetAssetServer(server);fprintf(stderr,"[asset-probe] server %s\n",PGAssetServer().UTF8String);
+  configuration.connectionProxyDictionary=@{};
   assetSession=[NSURLSession sessionWithConfiguration:configuration];atomic_store(&nextReport,UINT64_MAX);atomic_store(&fetchedBytes,0);
   uint8_t *bytes=malloc(fixture.length);assert(bytes);
   assert(readAsset(0,127,bytes,2000)==2000&&!memcmp(bytes,original+127,2000)&&atomic_load(&fetchedBytes)==0);

@@ -18,6 +18,7 @@ if [ -z "${PG_INPUT_MIRROR:-}" ]; then
   "$PY" Scripts/fetch_game_files.py --server "$SERVER" --out "$MIRROR"
 fi
 "$PY" Scripts/prepare.py --mirror "$MIRROR"
+bash Scripts/check_local_streaming.sh
 # The app opens with your server already filled in.
 /usr/libexec/PlistBuddy -c "Set :PGDefaultAssetServer $SERVER" App/Info.plist
 
