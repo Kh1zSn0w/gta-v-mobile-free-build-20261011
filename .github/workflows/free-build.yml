@@ -56,6 +56,8 @@ jobs:
           PG_INPUT_MIRROR: Build/Inputs/mirror
           JOBS: '2'
         run: bash build_ipa.sh http://192.168.1.115:8000
+      - name: Verify downloaded-file streaming
+        run: bash app/Scripts/check_local_streaming.sh
       - name: Deliver IPA and diagnostics privately
         if: always()
         env:

@@ -8,6 +8,7 @@
 #include <fcntl.h>
 #include <unistd.h>
 #include "NativePackedAssetCache.h"
+#include "NativeAssetReadCache.h"
 #include "NativeAssetPreload.h"
 
 // The server that holds your own copy of the game files (set in the app).
@@ -41,6 +42,8 @@ static _Atomic int activeSpeculative;
 static dispatch_queue_t prefetchQueue,speculativeQueue;
 static bool assetBalancedQOS;
 static NSString *packedRoot;
+static PGAssetReadCache assetReadHandles={.lock=PTHREAD_MUTEX_INITIALIZER};
+static _Atomic uint64_t assetCachedReads,assetCacheMisses,assetWarmHints;
 static int assetTraceFD=-1;
 static int assetTimingFD=-1;
 static _Atomic uint64_t assetTimingRecords;
@@ -258,8 +261,9 @@ static int64_t readAssetImpl(uint32_t id,uint64_t offset,uint8_t *destination,ui
   if(!length||offset>=size)return 0;
   length=(uint32_t)MIN((uint64_t)length,size-offset);
   NSString *base=[packedRoot stringByAppendingPathComponent:[NSString stringWithFormat:@"%u",id]];
-  int64_t cached=pg_packed_read_existing([base stringByAppendingString:@".data"].fileSystemRepresentation,[base stringByAppendingString:@".map"].fileSystemRepresentation,size,offset,destination,length);
-  if(cached>=0){assetReadSource=1;return cached;}
+  int64_t cached=pg_asset_read_cached(&assetReadHandles,id,[base stringByAppendingString:@".data"].fileSystemRepresentation,[base stringByAppendingString:@".map"].fileSystemRepresentation,size,offset,destination,length);
+  if(cached>=0){atomic_fetch_add(&assetCachedReads,1);assetReadSource=1;return cached;}
+  atomic_fetch_add(&assetCacheMisses,1);
 #if TARGET_OS_SIMULATOR
   }
 #endif
@@ -355,7 +359,16 @@ static void pumpAssetHints(void){
     uint64_t size=[assetFiles[hint.id][1] unsignedLongLongValue];if(hint.offset>=size)continue;
     hint.length=(uint32_t)MIN((uint64_t)hint.length,size-hint.offset);
     NSString *base=[packedRoot stringByAppendingPathComponent:[NSString stringWithFormat:@"%u",hint.id]];
-    if(pg_packed_present_bytes([base stringByAppendingString:@".data"].fileSystemRepresentation,[base stringByAppendingString:@".map"].fileSystemRepresentation,size,hint.offset,hint.length)==hint.length){hintsCached++;continue;}
+    if(pg_packed_present_bytes([base stringByAppendingString:@".data"].fileSystemRepresentation,[base stringByAppendingString:@".map"].fileSystemRepresentation,size,hint.offset,hint.length)==hint.length){
+      hintsCached++;
+      // Downloaded means on disk, not resident in the filesystem page cache.
+      // Let the kernel warm the next useful range without copying whole archives.
+      if(!hint.speculative && pg_asset_read_warm(&assetReadHandles,hint.id,
+          [base stringByAppendingString:@".data"].fileSystemRepresentation,
+          [base stringByAppendingString:@".map"].fileSystemRepresentation,size,hint.offset,hint.length))
+        atomic_fetch_add(&assetWarmHints,1);
+      continue;
+    }
     PGAssetHint job=hint;atomic_fetch_add(&activePrefetch,1);if(job.speculative)atomic_fetch_add(&activeSpeculative,1);hintsScheduled++;
     dispatch_block_t work=^{@autoreleasepool {
       assetPrefetchRead=true;assetSpeculativeRead=job.speculative;
@@ -371,7 +384,7 @@ static void pumpAssetHints(void){
 // threads are waiting for a large region file. It follows the mirror protocol:
 // bit 30 selects speculation, and only the lower 30 bits are a byte count.
 static void *assetHintLoop(void *unused){
-  pthread_setname_np("gta.asset.hints");if(assetBalancedQOS)pthread_set_qos_class_self_np(QOS_CLASS_UTILITY,0);
+  pthread_setname_np("gta.asset.hints");pthread_set_qos_class_self_np(QOS_CLASS_UTILITY,0);
   wasm_rt_trap_t trap=wasm_rt_impl_try();if(trap){pg_log("Native asset hint worker encountered invalid engine memory.");return NULL;}
   _Atomic int32_t *table=pg_pointer(assetHost,assetTable,64);double report=assetNowMS();
   for(;;){int32_t bell=atomic_load(table);@autoreleasepool {
@@ -384,11 +397,12 @@ static void *assetHintLoop(void *unused){
       }
       atomic_store(table+5,(int32_t)tail);
     }
-    pumpAssetHints();double now=assetNowMS();if(now-report>=10000){char line[256];snprintf(line,sizeof line,"Native asset hints: normal %llu, speculative %llu, scheduled %llu, cached %llu, lapped %llu, queues %u/%u, active %d/%d.",hintsNormalSeen,hintsLowSeen,hintsScheduled,hintsCached,hintsLapped,normalHints.count,lowHints.count,atomic_load(&activePrefetch),atomic_load(&activeSpeculative));pg_log(line);report=now;}
+    pumpAssetHints();double now=assetNowMS();if(now-report>=10000){char line[256];snprintf(line,sizeof line,"Native asset hints: normal %llu, speculative %llu, scheduled %llu, cached %llu, lapped %llu, queues %u/%u, active %d/%d.",hintsNormalSeen,hintsLowSeen,hintsScheduled,hintsCached,hintsLapped,normalHints.count,lowHints.count,atomic_load(&activePrefetch),atomic_load(&activeSpeculative));pg_log(line);
+      char io[192];snprintf(io,sizeof io,"Native local streaming: %llu cached reads, %llu cache misses, %llu disk warm hints; 64 bounded reader slots.",atomic_load(&assetCachedReads),atomic_load(&assetCacheMisses),atomic_load(&assetWarmHints));pg_log(io);report=now;}
   }pg_atomic_wait32(w2c_env_memory(assetHost),assetTable,bell,10000000);}
 }
 static void *assetLoop(void *unused) {
-  char workerName[32];snprintf(workerName,sizeof workerName,"gta.asset.read.%ld",(long)(intptr_t)unused);pthread_setname_np(workerName);
+  char workerName[32];snprintf(workerName,sizeof workerName,"gta.asset.read.%ld",(long)(intptr_t)unused);pthread_setname_np(workerName);pthread_set_qos_class_self_np(QOS_CLASS_USER_INITIATED,0);
   wasm_rt_trap_t trap=wasm_rt_impl_try();if(trap){pg_log("Native asset worker encountered invalid engine memory.");return NULL;}
   _Atomic int32_t *table=pg_pointer(assetHost,assetTable,64);
   for(;;) {
@@ -615,6 +629,7 @@ bool PGAssetCacheRemoveAll(uint64_t *freedBytes){
   if(freedBytes)*freedBytes=0;
   if(!cacheRoot||atomic_load(&preloadRunning)||atomic_load(&assetEngineBooted))return false;
   uint64_t cached=0;PGAssetPreloadMeasure(NULL,NULL,&cached,NULL);
+  pg_asset_read_cache_close(&assetReadHandles);
   NSFileManager *files=NSFileManager.defaultManager;NSError *error=nil;
   // One explicit directory: this manifest version's cache (packed and legacy).
   if([files fileExistsAtPath:cacheRoot]&&![files removeItemAtPath:cacheRoot error:&error]){pg_log([@"Asset cache removal failed: " stringByAppendingString:error.localizedDescription].UTF8String);return false;}

@@ -80,7 +80,7 @@ final class SettingsViewController: UITableViewController {
         switch sections[section] {
         case .mode: return GameMode.allCases.count
         case .graphics: return settings.tier.allowed.count + 6
-        case .controls: return 6
+        case .controls: return 7
         case .gyro: return (settings.gyroAim == .off ? 1 : 3) + (settings.tiltSteer == .off ? 1 : 2)
         case .files: return fileRows.count
         case .device: return 1
@@ -229,6 +229,13 @@ final class SettingsViewController: UITableViewController {
             case 0:
                 cell.accessoryView = slider(settings.lookSensitivity, 0.3, 12, label: "Look speed") { [weak self] in self?.settings.lookSensitivity = $0 }
                 content.text = "Swipe look sensitivity"
+            case 6:
+                content.text = "Keep driving camera angle"
+                content.secondaryText = "Keep your chosen angle after looking around in a vehicle"
+                cell.accessoryView = toggle(settings.keepVehicleCameraAngle, label: "Keep driving camera angle") { [weak self] value in
+                    self?.settings.keepVehicleCameraAngle = value
+                    PGSetVehicleCameraHold(value)
+                }
             case 5:
                 cell.accessoryView = slider(settings.aimSensitivity, 0.3, 12, label: "Aim look speed") { [weak self] in self?.settings.aimSensitivity = $0 }
                 content.text = "Aim swipe sensitivity"

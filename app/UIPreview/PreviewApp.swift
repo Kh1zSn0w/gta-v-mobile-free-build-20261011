@@ -51,8 +51,9 @@ final class PreviewController: UIViewController {
                 let args = ProcessInfo.processInfo.arguments
                 if let control = segment(in: navigation.view) {
                     if args.contains("--trainer-powers-preview") { control.selectedSegmentIndex = 1 }
-                    if args.contains("--trainer-vehicles-preview") { control.selectedSegmentIndex = 2 }
-                    if args.contains("--trainer-world-preview") { control.selectedSegmentIndex = 3 }
+                    if args.contains("--trainer-vehicles-preview") { control.selectedSegmentIndex = 3 }
+                    if args.contains("--trainer-world-preview") { control.selectedSegmentIndex = 4 }
+                    if args.contains("--trainer-character-preview") { control.selectedSegmentIndex = 2 }
                     control.sendActions(for: .valueChanged)
                 }
             }

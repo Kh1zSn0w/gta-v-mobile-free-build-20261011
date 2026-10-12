@@ -133,6 +133,8 @@ bool PGTrainerRequest(uint32_t command) {
 uint32_t PGTrainerStatus(void) { return atomic_load(&trainerQueue.status); }
 bool PGTrainerInvincible(void) { return atomic_load(&trainerInvincible); }
 
+#include "TrainerWardrobe.inc"
+
 void pg_trainer_tick(w2c_game *instance) {
     uint8_t *memory = (uint8_t *)(void *)env.memory.data;
     uint64_t size = env.memory.size, info = 0, ped = 0, playerState = 0, frontend = 0, world = 0;
@@ -164,10 +166,18 @@ void pg_trainer_tick(w2c_game *instance) {
     }
     if (ready && trainerResetPending) pg_trainer_reset(instance, 0);
     if (ready) trainerPed = ped;
-    uint32_t command = pg_trainer_take(&trainerQueue, ready, timeMS(CLOCK_MONOTONIC) / 1000.0);
+    double trainerNow = timeMS(CLOCK_MONOTONIC) / 1000.0;
+    pg_wardrobe_refresh(instance, ready, ped, trainerNow);
+    if (pg_wardrobe_loading(instance, ready, ped, trainerNow)) return;
+    uint32_t command = pg_trainer_take(&trainerQueue, ready, trainerNow);
     uint32_t player = ready ? w2c_game_f58714(instance) : 0;
     bool handled = true;
-    if (command >= PG_TRAINER_SUPER_JUMP && command <= PG_TRAINER_FLIGHT) {
+    if (command >= PG_TRAINER_POLICE_FIRST) {
+        if (command >= PG_TRAINER_SKIN_FIRST && command <= PG_TRAINER_RESTORE_CHARACTER) {
+            handled = pg_wardrobe_begin_skin(instance, command, ped, trainerNow);
+            if (handled) return; // The queue stays occupied while the model streams.
+        } else handled = pg_wardrobe_command(instance, command);
+    } else if (command >= PG_TRAINER_SUPER_JUMP && command <= PG_TRAINER_FLIGHT) {
         uint32_t flags = atomic_load(&trainerToggles) ^ pg_trainer_toggle_bit(command);
         // Bullet modes are exclusive so their damage behaviour stays predictable.
         if (command == PG_TRAINER_EXPLOSIVE_AMMO) flags &= ~pg_trainer_toggle_bit(PG_TRAINER_FIRE_AMMO);

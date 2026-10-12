@@ -1,6 +1,58 @@
 import XCTest
 
 final class LauncherTests: XCTestCase {
+    func testCharacterWardrobePoliceAndSuits() {
+        let app = XCUIApplication()
+        app.launchArguments = ["--trainer-preview"]
+        app.launch()
+        XCTAssertTrue(app.navigationBars["Trainer"].waitForExistence(timeout: 10))
+        let tabs = app.segmentedControls["trainer.categories"]
+        tabs.buttons["Character"].tap()
+        let police = app.descendants(matching: .any).matching(identifier: "trainer.action.101").firstMatch
+        XCTAssertTrue(police.isEnabled); police.tap()
+        XCTAssertTrue(app.staticTexts["Handed to game · Police officer · male"].waitForExistence(timeout: 4))
+        tabs.buttons["Player"].tap(); tabs.buttons["Character"].tap()
+        app.descendants(matching: .any).matching(identifier: "trainer.action.0").firstMatch.tap()
+        XCTAssertTrue(app.navigationBars["Customize outfit"].waitForExistence(timeout: 4))
+        app.descendants(matching: .any).matching(identifier: "wardrobe.variant.0").firstMatch.tap()
+        XCTAssertTrue(app.staticTexts["Style 2/3 · Colour 1/2"].waitForExistence(timeout: 4))
+        app.descendants(matching: .any).matching(identifier: "wardrobe.variant.2").firstMatch.tap()
+        XCTAssertTrue(app.staticTexts["Style 2/3 · Colour 2/2"].waitForExistence(timeout: 4))
+        app.buttons["wardrobe.piece"].tap(); app.buttons["Hat / helmet"].tap()
+        XCTAssertTrue(app.buttons["wardrobe.piece"].label.contains("Hat / helmet"))
+        app.navigationBars.buttons["Trainer"].tap()
+        tabs.buttons["Vehicles"].tap()
+        let search = app.searchFields["Find a tool or vehicle"]
+        search.tap(); search.typeText("Police Interceptor\n")
+        app.descendants(matching: .any).matching(identifier: "trainer.action.87").firstMatch.tap()
+        XCTAssertTrue(app.staticTexts["Handed to game · Police Interceptor"].waitForExistence(timeout: 4))
+    }
+    func testStoryBlocksSkinSwapAndAllowsClothes() {
+        let app = XCUIApplication()
+        app.launchArguments = ["--trainer-preview", "--trainer-story"]
+        app.launch()
+        XCTAssertTrue(app.navigationBars["Trainer"].waitForExistence(timeout: 10))
+        app.segmentedControls["trainer.categories"].buttons["Character"].tap()
+        let police = app.descendants(matching: .any).matching(identifier: "trainer.action.101").firstMatch
+        XCTAssertTrue(police.exists); XCTAssertFalse(police.isEnabled)
+        app.descendants(matching: .any).matching(identifier: "trainer.action.0").firstMatch.tap()
+        XCTAssertTrue(app.navigationBars["Customize outfit"].waitForExistence(timeout: 4))
+        XCTAssertTrue(app.descendants(matching: .any).matching(identifier: "wardrobe.variant.0").firstMatch.isEnabled)
+    }
+    func testDrivingCameraAnglePreferencePersists() {
+        let app = XCUIApplication(); app.launch()
+        XCTAssertTrue(app.buttons["launcher.settings.Controls"].waitForExistence(timeout: 10))
+        app.buttons["launcher.settings.Controls"].tap()
+        let keep = app.switches["Keep driving camera angle"]
+        for _ in 0..<4 where !keep.isHittable { app.swipeUp() }
+        XCTAssertEqual(keep.value as? String, "1"); keep.tap()
+        app.terminate(); app.launch()
+        XCTAssertTrue(app.buttons["launcher.settings.Controls"].waitForExistence(timeout: 10))
+        app.buttons["launcher.settings.Controls"].tap()
+        for _ in 0..<4 where !keep.isHittable { app.swipeUp() }
+        XCTAssertEqual(keep.value as? String, "0"); keep.tap()
+    }
+
     func testExpandedTrainerSearchTogglesWeatherAndReset() {
         let app = XCUIApplication()
         app.launchArguments = ["--trainer-preview"]

@@ -34,6 +34,11 @@ final class GameSettings {
     static let shared = GameSettings()
     private let defaults = UserDefaults.standard
 
+    var keepVehicleCameraAngle: Bool {
+        get { defaults.object(forKey: "keepVehicleCameraAngle") as? Bool ?? true }
+        set { defaults.set(newValue, forKey: "keepVehicleCameraAngle") }
+    }
+
     var gyroAim: GyroAimMode {
         get { GyroAimMode(rawValue: defaults.integer(forKey: "gyroAim")) ?? .off }
         set { defaults.set(newValue.rawValue, forKey: "gyroAim") }

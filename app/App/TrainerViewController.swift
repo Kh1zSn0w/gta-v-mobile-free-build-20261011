@@ -9,7 +9,7 @@ private struct TrainerAction {
 
 /// Session tools. Requests cross the C bridge; this controller never edits game memory.
 final class TrainerViewController: UIViewController, UITableViewDataSource, UITableViewDelegate, UISearchBarDelegate {
-    private let categories = UISegmentedControl(items: ["Player", "Powers", "Vehicles", "World"])
+    private let categories = UISegmentedControl(items: ["Player", "Powers", "Character", "Vehicles", "World"])
     private let table = UITableView(frame: .zero, style: .insetGrouped)
     private let status = UILabel()
     private let availability = UILabel()
@@ -18,6 +18,7 @@ final class TrainerViewController: UIViewController, UITableViewDataSource, UITa
     private var pendingSince = Date.distantPast
     private var lastReady = false
     private var lastInvincible = false
+    private var lastAvailable: [Bool] = []
     private let actions: [[TrainerAction]] = [
         [
             .init(command: 1, title: "Health & armor", detail: "Restore health and armor.", badge: "RESTORE"),
@@ -45,6 +46,45 @@ final class TrainerViewController: UIViewController, UITableViewDataSource, UITa
             .init(command: 25, title: "Reset powers", detail: "Switch all powers off. Flight gravity and movement return to normal.", badge: "RESET")
         ],
         [
+            .init(command: 0, title: "Customize outfit", detail: "Clothing pieces, colour variants, hats and glasses.", badge: "EDIT"),
+            .init(command: 101, title: "Police officer · male", detail: "Police uniform. Sandbox, on foot.", badge: "WEAR"),
+            .init(command: 102, title: "Police officer · female", detail: "Police uniform. Sandbox, on foot.", badge: "WEAR"),
+            .init(command: 103, title: "SWAT tactical uniform", detail: "Armored tactical character. Customize its available pieces.", badge: "WEAR"),
+            .init(command: 104, title: "Sheriff deputy · male", detail: "County police uniform.", badge: "WEAR"),
+            .init(command: 105, title: "Sheriff deputy · female", detail: "County police uniform.", badge: "WEAR"),
+            .init(command: 106, title: "Highway patrol officer", detail: "Traffic police character and uniform.", badge: "WEAR"),
+            .init(command: 107, title: "FIB detective · blazer", detail: "Undercover law enforcement look.", badge: "WEAR"),
+            .init(command: 108, title: "FIB detective · suit", detail: "Another FIB character with a formal look.", badge: "WEAR"),
+            .init(command: 109, title: "FIB tactical agent", detail: "Federal security character.", badge: "WEAR"),
+            .init(command: 110, title: "Black suit · bodyguard", detail: "High-security suited character.", badge: "WEAR"),
+            .init(command: 111, title: "Grey suit · bodyguard", detail: "Alternate security character and suit.", badge: "WEAR"),
+            .init(command: 112, title: "Business suit", detail: "A formal banker character.", badge: "WEAR"),
+            .init(command: 113, title: "Classic FIB suit", detail: "Suited FIB character.", badge: "WEAR"),
+            .init(command: 114, title: "Private security uniform", detail: "Jewelry security character.", badge: "WEAR"),
+            .init(command: 115, title: "Restore original character", detail: "Return to the character from before your first skin swap.", badge: "RESTORE"),
+            .init(command: 116, title: "Default outfit", detail: "Restore this character’s default clothing pieces.", badge: "RESET"),
+            .init(command: 117, title: "Random outfit", detail: "Randomize the current character’s available pieces.", badge: "SHUFFLE"),
+            .init(command: 118, title: "Random accessories", detail: "Randomize hats and other available props.", badge: "SHUFFLE"),
+            .init(command: 119, title: "Remove accessories", detail: "Remove hats, glasses and ear accessories.", badge: "CLEAR"),
+            .init(command: 180, title: "Save current outfit", detail: "Keep clothing and accessories in a session slot.", badge: "SAVE"),
+            .init(command: 181, title: "Apply saved outfit", detail: "Restore the saved look on the same character model.", badge: "APPLY")
+        ],
+        [
+            .init(command: 86, title: "Police Buffalo", detail: "Police sports sedan", badge: "SPAWN"),
+            .init(command: 87, title: "Police Interceptor", detail: "Police pursuit car", badge: "SPAWN"),
+            .init(command: 88, title: "Unmarked cruiser", detail: "Undercover police car", badge: "SPAWN"),
+            .init(command: 89, title: "Police motorcycle", detail: "Traffic police bike", badge: "SPAWN"),
+            .init(command: 90, title: "Police transport van", detail: "Police van", badge: "SPAWN"),
+            .init(command: 91, title: "Sheriff cruiser", detail: "County police car", badge: "SPAWN"),
+            .init(command: 92, title: "Sheriff SUV", detail: "County police SUV", badge: "SPAWN"),
+            .init(command: 93, title: "FIB SUV", detail: "Federal law enforcement SUV", badge: "SPAWN"),
+            .init(command: 94, title: "Park ranger SUV", detail: "Ranger patrol vehicle", badge: "SPAWN"),
+            .init(command: 95, title: "Riot truck", detail: "Armored police response truck", badge: "SPAWN"),
+            .init(command: 96, title: "Prison bus", detail: "Corrections transport", badge: "SPAWN"),
+            .init(command: 97, title: "Police Maverick", detail: "Police helicopter. Use an open area", badge: "SPAWN"),
+            .init(command: 98, title: "Police snow cruiser", detail: "Winter patrol vehicle", badge: "SPAWN"),
+            .init(command: 99, title: "Police snow SUV", detail: "Winter patrol SUV", badge: "SPAWN"),
+            .init(command: 100, title: "Military Crusader", detail: "Military support SUV", badge: "SPAWN"),
             .init(command: 28, title: "Repair current vehicle", detail: "Repair the vehicle you are sitting in.", badge: "REPAIR"),
             .init(command: 7, title: "Comet", detail: "Sports car", badge: "SPAWN"),
             .init(command: 8, title: "Sanchez", detail: "Dirt bike", badge: "SPAWN"),
@@ -236,13 +276,15 @@ final class TrainerViewController: UIViewController, UITableViewDataSource, UITa
                 self.pending = nil
                 table.reloadData()
             default:
-                if Date().timeIntervalSince(pendingSince) > 6 {
+                if Date().timeIntervalSince(pendingSince) > ((101...115).contains(pending.command) ? 20 : 6) {
                     status.text = "The game did not respond. Resume free roam, then reopen the trainer."
                     self.pending = nil
                     table.reloadData()
                 }
             }
         }
+        let available = visibleActions.map { $0.command == 0 ? ready : PGTrainerCommandAvailable($0.command) }
+        if available != lastAvailable { lastAvailable = available; table.reloadData() }
         if ready != lastReady || invincible != lastInvincible || toggles != lastToggles {
             lastToggles = toggles
             lastReady = ready
@@ -252,7 +294,7 @@ final class TrainerViewController: UIViewController, UITableViewDataSource, UITa
     }
     func tableView(_ tableView: UITableView, numberOfRowsInSection section: Int) -> Int { visibleActions.count }
     func tableView(_ tableView: UITableView, titleForFooterInSection section: Int) -> String? {
-        "Session-only tools. Powers reset on death or character change. Vehicle models need included assets and clear space; aircraft need room, boats need water. Snow depends on the game’s weather assets. Cheats can affect achievements."
+        "Session-only tools. Powers reset on death or character change. Vehicle models need included assets and clear space; aircraft need room, boats need water. Skin swaps need Sandbox, on foot, in a compatible free-roam scene. Clothing choices depend on the character. Snow depends on the game’s weather assets. Cheats can affect achievements."
     }
     func tableView(_ tableView: UITableView, cellForRowAt indexPath: IndexPath) -> UITableViewCell {
         let action = visibleActions[indexPath.row]
@@ -282,7 +324,7 @@ final class TrainerViewController: UIViewController, UITableViewDataSource, UITa
         cell.accessibilityLabel = action.title
         cell.accessibilityValue = isToggle(action.command) ? badge.text : action.detail
         cell.accessibilityTraits = .button
-        let enabled = PGTrainerReady() && pending == nil
+        let enabled = (action.command == 0 ? PGTrainerReady() : PGTrainerCommandAvailable(action.command)) && pending == nil
         cell.isUserInteractionEnabled = enabled
         cell.contentView.alpha = enabled ? 1 : 0.45
         badge.alpha = enabled ? 1 : 0.45
@@ -294,7 +336,11 @@ final class TrainerViewController: UIViewController, UITableViewDataSource, UITa
         tableView.deselectRow(at: indexPath, animated: true)
         guard pending == nil else { return }
         let action = visibleActions[indexPath.row]
-        guard PGTrainerRequest(action.command) else {
+        if action.command == 0 {
+            navigationController?.pushViewController(OutfitEditorViewController(), animated: true)
+            return
+        }
+        guard PGTrainerCommandAvailable(action.command), PGTrainerRequest(action.command) else {
             status.text = "Trainer unavailable. Return to free roam and try again."
             status.textColor = LauncherStyle.secondary
             return

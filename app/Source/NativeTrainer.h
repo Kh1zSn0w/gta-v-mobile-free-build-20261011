@@ -18,7 +18,15 @@ enum { PG_TRAINER_HEALTH = 1, PG_TRAINER_WEAPONS, PG_TRAINER_WANTED_DOWN,
        PG_TRAINER_REPAIR, PG_TRAINER_SKY_BOOST, PG_TRAINER_MOON_GRAVITY,
        PG_TRAINER_NORMAL_GRAVITY, PG_TRAINER_RANDOM_WEATHER, PG_TRAINER_AUTO_WEATHER,
        PG_TRAINER_NAMED_WEATHER_FIRST = 34, PG_TRAINER_NAMED_WEATHER_LAST = 45,
-       PG_TRAINER_VEHICLE_FIRST = 46, PG_TRAINER_VEHICLE_LAST = 85 };
+       PG_TRAINER_VEHICLE_FIRST = 46, PG_TRAINER_VEHICLE_LAST = 85,
+       PG_TRAINER_POLICE_FIRST = 86, PG_TRAINER_POLICE_LAST = 100,
+       PG_TRAINER_SKIN_FIRST = 101, PG_TRAINER_SKIN_LAST = 114,
+       PG_TRAINER_RESTORE_CHARACTER = 115, PG_TRAINER_DEFAULT_CLOTHES,
+       PG_TRAINER_RANDOM_CLOTHES, PG_TRAINER_RANDOM_PROPS, PG_TRAINER_CLEAR_PROPS,
+       PG_TRAINER_COMPONENT_FIRST = 120, PG_TRAINER_COMPONENT_LAST = 167,
+       PG_TRAINER_PROP_FIRST = 168, PG_TRAINER_PROP_LAST = 179,
+       PG_TRAINER_SAVE_LOOK = 180, PG_TRAINER_APPLY_LOOK = 181,
+       PG_TRAINER_LAST = 181 };
 static inline uint32_t pg_trainer_toggle_bit(uint32_t command) {
     return command >= 16 && command <= 24 ? 1u << (command - 16) :
            command == PG_TRAINER_MOON_GRAVITY ? 1u << 9 : 0;
@@ -30,7 +38,7 @@ typedef struct {
     double deadline; // Written before publishing command; read only after acquiring it.
 } PGTrainerQueue;
 static inline bool pg_trainer_valid(uint32_t command) {
-    return command >= PG_TRAINER_HEALTH && command <= PG_TRAINER_VEHICLE_LAST;
+    return command >= PG_TRAINER_HEALTH && command <= PG_TRAINER_LAST;
 }
 static inline bool pg_trainer_submit(PGTrainerQueue *queue, uint32_t command, double now) {
     if (!pg_trainer_valid(command) || !atomic_load(&queue->ready) || atomic_load(&queue->command)) return false;

@@ -19,6 +19,7 @@
 #include <mach/mach.h>
 #include "NativeMemoryBudget.h"
 #include "NativeTrainer.h"
+#include "NativeVehicleCamera.h"
 
 static struct w2c_env env;
 static struct w2c_wasi__snapshot__preview1 wasi = { .env = &env };
@@ -330,7 +331,33 @@ static _Atomic uint64_t virtualPad = 0x0000808080800000ull;
 static _Atomic bool virtualPadActive;
 static PGSwipeQueue swipeQueue;
 static _Atomic bool touchMouseFrame;
+static _Atomic bool vehicleCameraHoldEnabled = true;
+static _Atomic uint64_t vehicleLookEpoch;
+static PGVehicleCameraHold vehicleCameraHold;
+void PGSetVehicleCameraHold(bool enabled) { atomic_store(&vehicleCameraHoldEnabled, enabled); }
+// Called only from this vehicle camera's pull-around calculation. Leaving its
+// automatic offset untouched after manual look preserves the chosen orbit angle.
+bool pg_vehicle_camera_hold(uint64_t camera) {
+  const uint8_t *memory=(const uint8_t *)(void *)env.memory.data;
+  uint64_t size=env.memory.size, info=0,ped=0,vehicle=0,parent=0;
+  uint32_t context=pg_touch_context(memory,size);
+  bool driving=context==1 || context==12 || context==13 || context==14;
+  if (!driving || !pg_context_u64(memory,size,20159720,&info) ||
+      !pg_context_u64(memory,size,info+8,&ped) || !pg_context_u64(memory,size,ped+5576,&vehicle)) {
+    return pg_vehicle_camera_update(&vehicleCameraHold,false,0,0,atomic_load(&vehicleLookEpoch),false,false);
+  }
+  if (!pg_context_u64(memory,size,camera+544,&parent) || parent!=vehicle) return false;
+  uint64_t packed=atomic_load(&virtualPad);
+  bool manual=fabsf(((int)((packed>>32)&255)-127.5f)/127.5f)>.08f ||
+              fabsf(((int)((packed>>40)&255)-127.5f)/127.5f)>.08f;
+  // Look-behind is an explicit camera reset; normal vehicle follow can resume.
+  bool reset=(packed & 1024)!=0;
+  return pg_vehicle_camera_update(&vehicleCameraHold,atomic_load(&vehicleCameraHoldEnabled),
+      vehicle,camera,atomic_load(&vehicleLookEpoch),manual,reset);
+}
 void PGQueueCameraLook(float dx, float dy) {
+  if (isfinite(dx) && isfinite(dy) && (dx!=0 || dy!=0) && PGCurrentTouchContext()!=0)
+    atomic_fetch_add(&vehicleLookEpoch,1);
   pg_swipe_add_axis(&swipeQueue.x, dx);
   pg_swipe_add_axis(&swipeQueue.y, dy);
 }

@@ -369,6 +369,7 @@ final class NativePortViewController: UIViewController, MTKViewDelegate {
         engineStarted = true
         let mode = GameSettings.shared.gameMode
         bootedMode = mode
+        PGSetVehicleCameraHold(GameSettings.shared.keepVehicleCameraAngle)
         PGSetStartMode(Int32(mode.rawValue))
         appendLog("Game mode: \(mode.title)")
         bootedPreset = GameSettings.shared.graphicsPreset

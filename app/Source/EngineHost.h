@@ -64,3 +64,10 @@ bool PGTrainerRequest(uint32_t command);
 uint32_t PGTrainerStatus(void);
 bool PGTrainerInvincible(void);
 bool PGTrainerToggleState(uint32_t command);
+
+// Live character options are sampled on the engine thread.
+bool PGTrainerCommandAvailable(uint32_t command);
+void PGTrainerSelectClothingSlot(uint32_t slot);
+uint64_t PGTrainerClothingState(uint32_t slot);
+
+void PGSetVehicleCameraHold(bool enabled);

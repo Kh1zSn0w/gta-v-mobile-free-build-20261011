@@ -15,6 +15,7 @@ static bool paused;
 static double timeMS(int clock) { (void)clock; return now * 1000; }
 static bool PGPauseMenuActive(void) { return paused; }
 static void pg_log(const char *message) { (void)message; }
+static int configuredStartMode=2;
 static _Atomic uint64_t virtualPad = 0x0000808080800000ull;
 #include "TrainerEngine.inc"
 static int called, count;
@@ -49,6 +50,7 @@ void w2c_game_f50156(w2c_game *g,u32 ped,u32 enabled) { (void)g; gravityHandle=p
 float w2c_game_f50032(w2c_game *g,u32 ped) { (void)g; assert(ped==101); return 0; }
 void w2c_game_f52941(w2c_game *g,u32 level) { (void)g; gravityLevel=level; }
 static void request(w2c_game *game,u32 command) { assert(PGTrainerRequest(command)); pg_trainer_tick(game); assert(game->w2c_g0==31000000); }
+#include "wardrobe_fixture.inc"
 static void pointer(uint64_t address, uint64_t value) { memcpy(env.memory.data+address, &value, 8); }
 int main(void) {
     w2c_game game = {.w2c_g0=31000000};
@@ -60,6 +62,9 @@ int main(void) {
     pointer(20159720,30000000);
     pointer(30000008,30001000);
     pointer(30001000+4328,30000000);
+    pointer(30001000+4320,30010000);
+    pointer(30010000+4032,30018000);
+    uint32_t scriptCount=1; memcpy(env.memory.data+30010000+4064,&scriptCount,4);
     pointer(19603008,30008000);
     pointer(26005240,30009000);
     float health=100;
@@ -129,6 +134,27 @@ int main(void) {
         assert(!PGTrainerRequest(1));
         env.memory.data[28501281]=env.memory.data[18581341]=0;
     }
+    health=100; memcpy(env.memory.data+30001000+672,&health,4); now=20; pg_trainer_tick(&game);
+    for(u32 c=86;c<=100;c++) {request(&game,c); assert(strcmp(named,wardrobePolice[c-86])==0);}
+    assert(pg_wardrobe_hash("s_m_y_cop_01")==0x5e3da4a4u);
+    configuredStartMode=1; pg_trainer_tick(&game); assert(!PGTrainerCommandAvailable(101));
+    request(&game,101); assert(PGTrainerStatus()==PG_TRAINER_UNAVAILABLE);
+    configuredStartMode=2; pg_trainer_tick(&game); assert(PGTrainerCommandAvailable(101));
+    fixtureLoaded=false; request(&game,101); assert(PGTrainerStatus()==PG_TRAINER_PENDING && fixtureModel==0x1234);
+    now+=6; pg_trainer_tick(&game); assert(PGTrainerStatus()==PG_TRAINER_PENDING); // streaming may outlast the normal five-second command
+    fixtureLoaded=true; pg_trainer_tick(&game); assert(PGTrainerStatus()==PG_TRAINER_PENDING); pg_trainer_tick(&game);
+    assert(PGTrainerStatus()==PG_TRAINER_HANDLED && fixtureModel==0x5e3da4a4u);
+    request(&game,115); pg_trainer_tick(&game); pg_trainer_tick(&game); assert(fixtureModel==0x1234);
+    fixtureLoaded=false; request(&game,101); now+=16; pg_trainer_tick(&game); assert(PGTrainerStatus()==PG_TRAINER_EXPIRED);
+    fixtureLoaded=true; PGTrainerSelectClothingSlot(3); now+=1; pg_trainer_tick(&game);
+    assert(((PGTrainerClothingState(3)>>16)&65535)==3);
+    request(&game,132); assert(fixtureDrawable[3]==1); request(&game,134); assert(fixtureTexture[3]==1);
+    request(&game,180); request(&game,132); assert(fixtureDrawable[3]==2); request(&game,181); assert(fixtureDrawable[3]==1 && fixtureTexture[3]==1);
+    fixtureModel=999; request(&game,181); assert(PGTrainerStatus()==PG_TRAINER_UNAVAILABLE); fixtureModel=0x1234;
+    request(&game,168); assert(fixtureDrawable[12]==0); request(&game,169); assert(fixtureDrawable[12]==-1);
+    fixtureValid=false; request(&game,132); assert(PGTrainerStatus()==PG_TRAINER_UNAVAILABLE); fixtureValid=true;
+    configuredStartMode=1; request(&game,132); assert(PGTrainerStatus()==PG_TRAINER_HANDLED); // Story clothes allowed, Story skins blocked
+    puts("WARDROBE CHECKS PASSED: bounded variants, prop removal, saved-look model guard, asynchronous loading, timeouts and Story protection.");
     free(env.memory.data);
     puts("TRAINER DISPATCH CHECKS PASSED: 85 routes, frame powers, exclusive ammo, named weather, stack lifetime, flight controls and cleanup.");
 }

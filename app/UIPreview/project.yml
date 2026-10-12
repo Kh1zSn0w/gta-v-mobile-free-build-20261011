@@ -11,6 +11,7 @@ targets:
       - PreviewAssets.swift
       - PreviewTouchControls.swift
       - ../App/TrainerViewController.swift
+      - ../App/OutfitEditorViewController.swift
       - ../App/LauncherView.swift
       - ../App/SettingsViewController.swift
       - ../App/GameSettings.swift

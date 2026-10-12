@@ -12,3 +12,9 @@ xcrun clang -std=c11 -O2 -Wall -Wextra -I Source Tests/trainer_queue.c -o Build/
 Build/Probe/trainer-queue
 xcrun clang -std=c11 -O2 -Wall -Wextra -I Source Tests/trainer_engine.c -o Build/Probe/trainer-engine
 Build/Probe/trainer-engine
+
+xcrun clang -std=c11 -O2 -Wall -Wextra -I Source Tests/vehicle_camera.c -o Build/Probe/vehicle-camera
+Build/Probe/vehicle-camera
+
+xcrun clang -std=c11 -O2 -Wall -Wextra -I Source Tests/asset_read_cache.c -o Build/Probe/asset-read-cache
+Build/Probe/asset-read-cache

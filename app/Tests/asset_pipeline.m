@@ -41,6 +41,7 @@ int main(void){@autoreleasepool {
   assert([[NSFileManager defaultManager] createDirectoryAtPath:packedRoot withIntermediateDirectories:YES attributes:nil error:nil]);
   assert([[fixture subdataWithRange:NSMakeRange(0,4096)] writeToFile:[legacy stringByAppendingPathComponent:@"0"] options:NSDataWritingAtomic error:nil]);
   NSURLSessionConfiguration *configuration=[NSURLSessionConfiguration ephemeralSessionConfiguration];configuration.timeoutIntervalForRequest=10;
+  const char *server=getenv("PG_ASSET_TEST_SERVER");assert(server&&*server);PGSetAssetServer(server);
   assetSession=[NSURLSession sessionWithConfiguration:configuration];atomic_store(&nextReport,UINT64_MAX);atomic_store(&fetchedBytes,0);
   uint8_t *bytes=malloc(fixture.length);assert(bytes);
   assert(readAsset(0,127,bytes,2000)==2000&&!memcmp(bytes,original+127,2000)&&atomic_load(&fetchedBytes)==0);
@@ -118,8 +119,10 @@ int main(void){@autoreleasepool {
   assert(pg_packed_present_bytes([one stringByAppendingString:@".data"].fileSystemRepresentation,[one stringByAppendingString:@".map"].fileSystemRepresentation,fixture.length,0,fixture.length)==fixture.length);
   assert(readAsset(1,fixture.length-123,bytes,123)==123&&!memcmp(bytes,original+fixture.length-123,123)&&atomic_load(&fetchedBytes)==beforeHints+fixture.length+4096);
   free(bytes);[assetSession invalidateAndCancel];
-  puts("PASS: real HTTPS ranges, exact cache bytes, migration/fallback, concurrent disjoint fills, shared overlaps, exception cleanup, production hint scheduler with full ranges/bit-30 flags, and cached hint skipping.");
+  assert(atomic_load(&assetCachedReads)>0 && atomic_load(&assetCacheMisses)>0);
+  puts("LOCAL STREAMING PIPELINE CHECKS PASSED: localhost ranges, exact cache bytes, migration/fallback, concurrent disjoint fills, shared overlaps, exception cleanup, production hint scheduler with full ranges/bit-30 flags, and cached hint skipping.");
  } @finally {
+  pg_asset_read_cache_close(&assetReadHandles);
   [[NSFileManager defaultManager] removeItemAtPath:served error:nil];
   [[NSFileManager defaultManager] removeItemAtPath:temporary error:nil];
  }

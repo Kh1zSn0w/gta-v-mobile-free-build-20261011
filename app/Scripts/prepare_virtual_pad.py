@@ -25,7 +25,7 @@ if new not in f:
 include='#include "game-virtual-pad-impl.h"'
 if include not in s:
     s=s.replace('#include "game-impl.h"',include,1)
-(root/'Generated/game-virtual-pad-impl.h').write_text('#include "game-impl.h"\nextern void pg_virtual_pad_apply(w2c_game *instance, uint64_t pad);\nextern void pg_touch_mouse_finish(void);\nextern void pg_trainer_tick(w2c_game *instance);\n')
+(root/'Generated/game-virtual-pad-impl.h').write_text('#include "game-impl.h"\nextern void pg_virtual_pad_apply(w2c_game *instance, uint64_t pad);\nextern void pg_touch_mouse_finish(void);\nextern void pg_trainer_tick(w2c_game *instance);\nextern bool pg_vehicle_camera_hold(uint64_t camera);\n')
 if p.read_text()!=s:p.write_text(s)
 
 # The v1.6 query multiplier is deliberately gone: touch now enters the
@@ -60,6 +60,7 @@ signatures = [f'void w2c_game_f{i}(w2c_game* instance) {{' for i in
               [37634, 37635, 37636, 37638, 37639, 37641, 37644, 37645, 37646, 37650, 37654]]
 signatures += ['void w2c_game_f49437(w2c_game* instance, u32 var_p0, u32 var_p1, u32 var_p2) {']
 signatures += ['void w2c_game_f37642(w2c_game* instance, u64 var_p0, u32 var_p1) {', 'void w2c_game_f52794(w2c_game* instance, u64 var_p0) {', 'void w2c_game_f52797(w2c_game* instance) {', 'void w2c_game_f52798(w2c_game* instance) {', 'u32 w2c_game_f37934(w2c_game* instance, u64 var_p0) {', 'void w2c_game_f53007(w2c_game* instance, u32 var_p0) {', 'void w2c_game_f53008(w2c_game* instance, u32 var_p0) {', 'void w2c_game_f53009(w2c_game* instance, u32 var_p0) {', 'void w2c_game_f53010(w2c_game* instance, u32 var_p0) {', 'u32 w2c_game_f58714(w2c_game* instance) {', 'u32 w2c_game_f58715(w2c_game* instance) {', 'void w2c_game_f58753(w2c_game* instance, u32 var_p0, f32 var_p1) {', 'void w2c_game_f58754(w2c_game* instance, u32 var_p0, f32 var_p1) {', 'void w2c_game_f58646(w2c_game* instance, u32 var_p0) {', 'void w2c_game_f58699(w2c_game* instance, u32 var_p0) {', 'void w2c_game_f58779(w2c_game* instance, u32 var_p0, u32 var_p1, u32 var_p2) {', 'u32 w2c_game_f57184(w2c_game* instance, u32 var_p0, u32 var_p1) {', 'void w2c_game_f61578(w2c_game* instance, u32 var_p0) {', 'void w2c_game_f50154(w2c_game* instance, u32 var_p0, u64 var_p1) {', 'void w2c_game_f50156(w2c_game* instance, u32 var_p0, u32 var_p1) {', 'f32 w2c_game_f50032(w2c_game* instance, u32 var_p0) {', 'void w2c_game_f52941(w2c_game* instance, u32 var_p0) {']
+signatures += ['void w2c_game_f58625(w2c_game* instance, u32 var_p0, u32 var_p1) {', 'void w2c_game_f60322(w2c_game* instance, u32 var_p0) {', 'u32 w2c_game_f60324(w2c_game* instance, u32 var_p0) {', 'void w2c_game_f60327(w2c_game* instance, u32 var_p0) {', 'u32 w2c_game_f60347(w2c_game* instance, u32 var_p0) {', 'u32 w2c_game_f60348(w2c_game* instance, u32 var_p0) {', 'u32 w2c_game_f50040(w2c_game* instance, u32 var_p0) {', 'u32 w2c_game_f57381(w2c_game* instance, u32 var_p0, u32 var_p1) {', 'u32 w2c_game_f57382(w2c_game* instance, u32 var_p0, u32 var_p1) {', 'u32 w2c_game_f57383(w2c_game* instance, u32 var_p0, u32 var_p1) {', 'u32 w2c_game_f57384(w2c_game* instance, u32 var_p0, u32 var_p1) {', 'u32 w2c_game_f57385(w2c_game* instance, u32 var_p0, u32 var_p1, u32 var_p2) {', 'u32 w2c_game_f57386(w2c_game* instance, u32 var_p0, u32 var_p1, u32 var_p2) {', 'u32 w2c_game_f57391(w2c_game* instance, u32 var_p0, u32 var_p1, u32 var_p2, u32 var_p3) {', 'void w2c_game_f57392(w2c_game* instance, u32 var_p0, u32 var_p1, u32 var_p2, u32 var_p3, u32 var_p4) {', 'void w2c_game_f57393(w2c_game* instance, u32 var_p0, u32 var_p1) {', 'void w2c_game_f57394(w2c_game* instance, u32 var_p0) {', 'void w2c_game_f57395(w2c_game* instance, u32 var_p0) {', 'u32 w2c_game_f57435(w2c_game* instance, u32 var_p0, u32 var_p1) {', 'void w2c_game_f57436(w2c_game* instance, u32 var_p0, u32 var_p1, u32 var_p2, u32 var_p3, u32 var_p4) {', 'u32 w2c_game_f57438(w2c_game* instance, u32 var_p0, u32 var_p1) {', 'void w2c_game_f57439(w2c_game* instance, u32 var_p0, u32 var_p1) {', 'void w2c_game_f57440(w2c_game* instance, u32 var_p0) {']
 units = {unit: unit.read_text() for unit in (root / 'Generated').glob('game_*.c')}
 for signature in signatures:
     if sum(signature in text for text in units.values()) != 1:
@@ -102,4 +103,22 @@ if new not in function:
     text = text[:start] + function.replace(old, new) + text[end:]
 if include not in text: text = text.replace('#include "game-impl.h"', include, 1)
 if unit.read_text() != text: unit.write_text(text)
-print('TRAINER ENGINE HOOK VERIFIED: native cheat update, 34 pinned functions, invincibility branch.')
+print('TRAINER ENGINE HOOK VERIFIED: native cheat update, 57 pinned functions, invincibility branch.')
+
+# Preserve manual vehicle look by skipping only its automatic pull-around method.
+camera_signature = 'void w2c_game_f27019(w2c_game* instance, u64 var_p0, u64 var_p1, u64 var_p2) {'
+camera_unit = next(unit for unit, body in units.items() if camera_signature in body)
+camera_text = camera_unit.read_text()
+start = camera_text.index(camera_signature)
+end = camera_text.index('\n}', start) + 2
+function = camera_text[start:end]
+for marker in ['w2c_game_f26967(instance, var_j0, var_j1, var_j2);', '1360u', '1364u', '544u']:
+    if marker not in function: raise RuntimeError('Vehicle pull-around body changed: ' + marker)
+old = '  FUNC_PROLOGUE;'
+new = '  if (pg_vehicle_camera_hold(var_p0)) return;\n' + old
+if new not in function:
+    if function.count(old)!=1: raise RuntimeError('Unexpected vehicle camera prologue')
+    camera_text = camera_text[:start] + function.replace(old,new,1) + camera_text[end:]
+if include not in camera_text: camera_text = camera_text.replace('#include "game-impl.h"',include,1)
+camera_unit.write_text(camera_text)
+print('VEHICLE CAMERA HOLD VERIFIED: manual look bypasses automatic pull-around; input and collision paths unchanged.')

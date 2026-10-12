@@ -9,7 +9,7 @@ xcrun simctl bootstatus "$DEVICE" -b
 xcrun simctl status_bar "$DEVICE" override --time 9:41 --batteryState charged --batteryLevel 100
 xcrun simctl install "$DEVICE" Build/Build/Products/Debug-iphonesimulator/LauncherPreview.app
 mkdir -p Screenshots
-for SHOT in home mode-picker landscape loading graphics files trainer-preview trainer-powers-preview trainer-vehicles-preview trainer-world-preview; do
+for SHOT in home mode-picker landscape loading graphics files trainer-preview trainer-powers-preview trainer-vehicles-preview trainer-world-preview trainer-character-preview; do
   xcrun simctl terminate "$DEVICE" io.github.playgta5ios.launcher-preview || true
   ARG=""
   [ "$SHOT" = home ] || ARG="--$SHOT"
