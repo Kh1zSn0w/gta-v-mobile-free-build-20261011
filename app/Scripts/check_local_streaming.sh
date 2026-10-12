@@ -6,7 +6,11 @@ mkdir "$fixtureRoot/data"
 python3 Scripts/asset_test_server.py "$fixtureRoot" > "$fixtureRoot/port" &
 serverPID=$!
 trap 'kill "$serverPID" 2>/dev/null || true; rm -rf "$fixtureRoot"' EXIT
-for attempt in {1..100}; do [ -s "$fixtureRoot/port" ] && break; sleep 0.1; done
+for attempt in {1..600}; do
+  [ -s "$fixtureRoot/port" ] && break
+  kill -0 "$serverPID" 2>/dev/null || { echo "Test server exited before readiness"; exit 1; }
+  sleep 0.1
+done
 port=$(head -n 1 "$fixtureRoot/port")
 [[ "$port" =~ ^[0-9]+$ ]] || { echo "Invalid test server port"; exit 1; }
 printf "health" > "$fixtureRoot/data/health"
