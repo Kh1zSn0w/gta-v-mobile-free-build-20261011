@@ -163,7 +163,13 @@ int main(void) {
     now+=6; pg_trainer_tick(&game); assert(PGTrainerStatus()==PG_TRAINER_PENDING); // streaming may outlast the normal five-second command
     fixtureLoaded=true; pg_trainer_tick(&game); assert(PGTrainerStatus()==PG_TRAINER_PENDING); pg_trainer_tick(&game);
     assert(PGTrainerStatus()==PG_TRAINER_HANDLED && fixtureModel==0x5e3da4a4u);
+    request(&game,101);assert(PGTrainerStatus()==PG_TRAINER_HANDLED && wardrobePendingModel==0);
     request(&game,115); pg_trainer_tick(&game); pg_trainer_tick(&game); assert(fixtureModel==0x1234);
+    for(u32 c=101;c<=114;c++) {
+        request(&game,c);pg_trainer_tick(&game);pg_trainer_tick(&game);
+        assert(PGTrainerStatus()==PG_TRAINER_HANDLED && fixtureModel==pg_wardrobe_hash(wardrobeModels[c-101]));
+    }
+    request(&game,115);pg_trainer_tick(&game);pg_trainer_tick(&game);assert(fixtureModel==0x1234);
     fixtureLoaded=false; request(&game,101); now+=16; pg_trainer_tick(&game); assert(PGTrainerStatus()==PG_TRAINER_EXPIRED);
     fixtureLoaded=true; PGTrainerSelectClothingSlot(3); now+=1; pg_trainer_tick(&game);
     assert(((PGTrainerClothingState(3)>>16)&65535)==3);

@@ -70,6 +70,7 @@ run('python3', 'Scripts/prepare_heap_diagnostics.py')
 run('python3', 'Scripts/prepare_memory_pressure.py')
 shutil.copyfile(options.mirror / 'data/manifest.json', root / 'Resources/manifest.json')
 run('python3', 'Scripts/prepare_virtual_pad.py')
+run('bash', 'Scripts/check_character_swap_native.sh')
 run('python3', 'Scripts/check_swipe_queries.py')
 run('python3', 'Scripts/prepare_unchecked_memory.py')
 # The BC texture decoder header (MIT): phones without BC texture support get decoded textures.

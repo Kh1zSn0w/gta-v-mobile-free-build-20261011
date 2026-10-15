@@ -1,4 +1,5 @@
 // Clothing and skin changes are engine-thread-only. UIKit sees atomic snapshots.
+#include "NativeCharacterSwap.h"
 void w2c_game_f58625(w2c_game* instance, u32 var_p0, u32 var_p1);
 void w2c_game_f60322(w2c_game* instance, u32 var_p0);
 u32 w2c_game_f60324(w2c_game* instance, u32 var_p0);
@@ -38,6 +39,12 @@ static _Thread_local bool wardrobePreloadedSwap;
 static uint32_t wardrobeReleaseModel;
 
 bool pg_wardrobe_preloaded_swap(void) { return wardrobePreloadedSwap; }
+bool pg_wardrobe_script_handoff_ready(uint64_t ped) {
+    if (!wardrobePreloadedSwap) return true;
+    bool ready=pg_character_task_handoff_ready((const uint8_t *)(void *)env.memory.data,env.memory.size,ped);
+    if (!ready) pg_log("Character preset: Sandbox has no scripted-control task; optional script handoff skipped.");
+    return ready;
+}
 typedef struct { int32_t drawable, texture; } PGWardrobePiece;
 static PGWardrobePiece wardrobeSaved[15];
 static uint32_t wardrobeSavedModel;
@@ -103,14 +110,11 @@ static bool pg_wardrobe_cycle(w2c_game *instance,uint32_t command) {
     return pg_wardrobe_set(instance,ped,slot,drawable,texture);
 }
 static void pg_wardrobe_refresh(w2c_game *instance,bool ready,uint64_t ped,double now) {
-    // CHANGE_PLAYER_MODEL asserts that the ped has a live script task. Match
-    // that prerequisite rather than calling the native from an incomplete scene.
-    uint64_t intelligence=0,script=0; uint32_t scriptCount=0;
+    uint64_t intelligence=0;
     const uint8_t *memory=(const uint8_t *)(void *)env.memory.data;
     bool skin=ready && configuredStartMode==2 && pg_touch_context(memory,env.memory.size)==0 &&
         pg_context_u64(memory,env.memory.size,ped+4320,&intelligence) && intelligence &&
-        pg_context_u32(memory,env.memory.size,intelligence+4064,&scriptCount) && scriptCount &&
-        pg_context_u64(memory,env.memory.size,intelligence+4032,&script) && script && script<env.memory.size;
+        intelligence<env.memory.size && env.memory.size-intelligence>=6424;
     atomic_store(&wardrobeSkinReady,skin);
     if (!ready) { for (unsigned i=0;i<15;i++) atomic_store(&wardrobeStates[i],0); return; }
     uint32_t handle=w2c_game_f58715(instance);
@@ -129,6 +133,12 @@ static bool pg_wardrobe_begin_skin(w2c_game *instance,uint32_t command,uint64_t 
     if (!atomic_load(&wardrobeSkinReady)) return false;
     uint32_t hash=command==115?wardrobeOriginalModel:pg_wardrobe_hash(wardrobeModels[command-101]);
     if (!hash || !w2c_game_f60347(instance,hash) || !w2c_game_f60348(instance,hash)) return false;
+    if (w2c_game_f50040(instance,w2c_game_f58715(instance))==hash) {
+        if (command==115) wardrobeOriginalModel=0;
+        atomic_store(&trainerQueue.status,PG_TRAINER_HANDLED);
+        atomic_store(&trainerQueue.command,0);
+        return true;
+    }
     if (!wardrobeOriginalModel) wardrobeOriginalModel=w2c_game_f50040(instance,w2c_game_f58715(instance));
     wardrobePendingModel=hash; wardrobePendingPed=ped; wardrobeDeadline=now+15; wardrobeSwapped=false;
     w2c_game_f60322(instance,hash);
@@ -148,8 +158,10 @@ static bool pg_wardrobe_loading(w2c_game *instance,bool ready,uint64_t ped,doubl
         // The requested model is resident. A synchronous streaming flush here
         // can wait on the scheduler callback currently executing this request.
         wardrobePreloadedSwap=true;
+        pg_log("Character preset: loaded model; entering player-model replacement.");
         w2c_game_f58625(instance,w2c_game_f58714(instance),wardrobePendingModel);
         wardrobePreloadedSwap=false;
+        pg_log("Character preset: player-model replacement returned; checking the new player next frame.");
         wardrobeSwapped=true;
         return true; // Resolve the new ped handle next update; never use the old one.
     } else if (wardrobeSwapped && w2c_game_f50040(instance,w2c_game_f58715(instance))==wardrobePendingModel) result=PG_TRAINER_HANDLED;

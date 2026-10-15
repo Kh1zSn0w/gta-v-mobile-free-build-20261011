@@ -7,6 +7,7 @@ and analog driving all use their normal code paths.
 """
 from pathlib import Path
 import re
+from prepare_character_swap import patch_player_model_change
 root=Path(__file__).resolve().parents[1]
 p=root/'Generated/game_0.c'
 s=p.read_text()
@@ -126,21 +127,20 @@ print('VEHICLE CAMERA HOLD VERIFIED: manual look bypasses automatic pull-around;
 # Our trainer has already loaded the model across frames. Avoid re-entering
 # the synchronous streaming flush from inside the scheduler's own callback.
 header = root/'Generated/game-virtual-pad-impl.h'
-header.write_text(header.read_text() + '\nextern bool pg_wardrobe_preloaded_swap(void);\n')
+header.write_text(header.read_text() + '\nextern bool pg_wardrobe_preloaded_swap(void);\nextern bool pg_wardrobe_script_handoff_ready(uint64_t ped);\n')
 signature = 'void w2c_game_f58625(w2c_game* instance, u32 var_p0, u32 var_p1) {'
 unit = next(unit for unit, body in units.items() if signature in body)
 text = unit.read_text()
 start = text.index(signature)
 end = text.index('\n}', start) + 2
 function = text[start:end]
-old = '  w2c_game_f5315(instance, var_i0);'
-new = '  if (!pg_wardrobe_preloaded_swap()) w2c_game_f5315(instance, var_i0);'
-if new not in function:
-    if function.count(old) != 1 or 'w2c_game_f47995(' not in function:
-        raise RuntimeError('Pinned character-change streaming prerequisite changed')
-    text = text[:start] + function.replace(old, new, 1) + text[end:]
+function = patch_player_model_change(function)
+text = text[:start] + function + text[end:]
 if include not in text: text = text.replace('#include "game-impl.h"', include, 1)
 unit.write_text(text)
+probe = root/'Build/Probe'
+probe.mkdir(parents=True, exist_ok=True)
+(probe/'character-change-native.inc').write_text(function + '\n')
 
 checkpoint_signatures = [
     'void w2c_game_f50028(w2c_game* instance, u64 var_p0, u32 var_p1, u32 var_p2) {',
