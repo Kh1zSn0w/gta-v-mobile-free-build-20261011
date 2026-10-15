@@ -13,4 +13,10 @@ def patch_player_model_change(function):
         if function.count(handoff) != 1 or function.count('  var_B1:;') != 1:
             raise RuntimeError('Pinned character script-task handoff changed')
         function = function.replace(handoff, guarded_handoff, 1)
+    resolved = '  var_j0 = w2c_game_f45797(instance, var_j0, var_i1);\n  var_l3 = var_j0;'
+    guarded_result = resolved + '\n  if (pg_wardrobe_preloaded_swap() && !var_l3) goto var_B1;'
+    if guarded_result not in function:
+        if function.count(resolved) != 1:
+            raise RuntimeError('Pinned character motion-task result changed')
+        function = function.replace(resolved, guarded_result, 1)
     return function

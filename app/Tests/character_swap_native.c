@@ -46,6 +46,7 @@ STORE(write32,u32) STORE(write16,uint16_t) STORE(write128,v128)
 
 static Memory memory;
 static bool preloaded;
+static bool missingMotionTask;
 static unsigned replacements,flushes,taskQueries,taskTransfers;
 enum { OLD_PED=10000, NEW_PED=20000, INTELLIGENCE=40000, PRIMARY=50000,
     CONTROL=51000, PRIMARY_TABLE=60000, CONTROL_TABLE=61000, QUEUE_TABLE=62000,
@@ -67,7 +68,7 @@ static void w2c_game_f46445(w2c_game *game,u64 transform) {(void)game;assert(tra
 static u64 w2c_game_f45797(w2c_game *game,u64 ped,u32 create) {
     (void)game;assert(ped==NEW_PED && create==1);
     assert(pg_character_task_handoff_ready(memory.data,memory.size,ped));
-    taskQueries++;return CONTROL;
+    taskQueries++;return missingMotionTask?0:CONTROL;
 }
 static void transform(void *game,u64 address,u64 vector) {(void)game;assert(address==NEW_PED+240 && vector<memory.size);}
 static u64 subtask(void *game,u64 task) {(void)game;assert(task==CONTROL);return LEAF;}
@@ -100,8 +101,11 @@ int main(void) {
     w2c_game_f58625(&game,0,16);assert(replacements==16 && !taskQueries && game.w2c_g0==900000);
     count(4);pointer(INTELLIGENCE+4032,PRIMARY);pointer(INTELLIGENCE+4056,CONTROL);
     w2c_game_f58625(&game,0,17);assert(replacements==17 && taskQueries==1 && taskTransfers==1 && !flushes && game.w2c_g0==900000);
+    missingMotionTask=true;
+    w2c_game_f58625(&game,0,18);assert(replacements==18 && taskQueries==2 && taskTransfers==1 && game.w2c_g0==900000);
+    missingMotionTask=false;
     preloaded=false;
-    w2c_game_f58625(&game,0,18);assert(replacements==18 && taskQueries==2 && taskTransfers==2 && flushes==1 && game.w2c_g0==900000);
+    w2c_game_f58625(&game,0,19);assert(replacements==19 && taskQueries==3 && taskTransfers==2 && flushes==1 && game.w2c_g0==900000);
     assert(!pg_character_task_handoff_ready(memory.data,memory.size,UINT64_MAX));
     free(memory.data);
     puts("CHARACTER NATIVE CHECKS PASSED: actual generated model-change body, all preset routes, missing control/primary tasks, valid task transfer, original path and stack restoration.");
