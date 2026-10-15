@@ -3,7 +3,7 @@ static uint32_t fixtureModel=0x1234, fixtureRequested;
 static bool fixtureLoaded=true,fixtureValid=true;
 static int32_t fixtureDrawable[15]={0,0,0,0,0,0,0,0,0,0,0,0,-1,-1,-1};
 static int32_t fixtureTexture[15];
-void w2c_game_f58625(w2c_game *g,u32 player,u32 model){(void)g;assert(player==0 && model==fixtureRequested);fixtureModel=model;}
+void w2c_game_f58625(w2c_game *g,u32 player,u32 model){(void)g;assert(player==0 && model==fixtureRequested && pg_wardrobe_preloaded_swap());fixtureModel=model;}
 void w2c_game_f60322(w2c_game *g,u32 model){(void)g;fixtureRequested=model;}
 u32 w2c_game_f60324(w2c_game *g,u32 model){(void)g;assert(model==fixtureRequested);return fixtureLoaded;}
 void w2c_game_f60327(w2c_game *g,u32 model){(void)g;assert(model==fixtureRequested);}

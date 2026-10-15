@@ -8,8 +8,23 @@
 #include <fcntl.h>
 #include <unistd.h>
 #include "NativePackedAssetCache.h"
-#include "NativeAssetReadCache.h"
 #include "NativeAssetPreload.h"
+
+// A language choice requested by the native app when the WASM engine boots.
+// This does not guarantee the underlying web game uses the locale or has the necessary fonts.
+const char *PGSelectedGameLanguage(void) {
+  NSString *chosen = [[NSUserDefaults standardUserDefaults] stringForKey:@"gtaPortAppLanguage"];
+  static const char *supported[] = {
+    "en-US", "fr-FR", "it-IT", "de-DE", "es-ES", "ja-JP", "ko-KR",
+    "pl-PL", "pt-BR", "ru-RU", "zh-CN", "es-MX", "zh-TW"
+  };
+  if (chosen != nil) {
+    for (size_t i = 0; i < sizeof(supported)/sizeof(supported[0]); ++i) {
+      if ([chosen isEqualToString:[NSString stringWithUTF8String:supported[i]]]) return supported[i];
+    }
+  }
+  return "en-US";
+}
 
 // The server that holds your own copy of the game files (set in the app).
 static NSString *assetServer=@"";
@@ -19,6 +34,15 @@ void PGSetAssetServer(const char *url){
   assetServer=value;
 }
 NSString *PGAssetServer(void){return assetServer;}
+
+// A folder on this device with the game's data/ files (chosen in the app):
+// every asset read goes straight to the file; no server, no download cache.
+static NSString *localDataRoot;
+void PGSetLocalGameFolder(const char *dataPath){
+  localDataRoot=dataPath&&*dataPath?[NSString stringWithUTF8String:dataPath]:nil;
+  if(localDataRoot)pg_log("Game files are read from the folder on this device; no server is used.");
+}
+bool PGUsingLocalGameFolder(void){return localDataRoot!=nil;}
 #include "NativeAssetHints.h"
 
 @interface PGAssetCondition : NSCondition
@@ -42,8 +66,6 @@ static _Atomic int activeSpeculative;
 static dispatch_queue_t prefetchQueue,speculativeQueue;
 static bool assetBalancedQOS;
 static NSString *packedRoot;
-static PGAssetReadCache assetReadHandles={.lock=PTHREAD_MUTEX_INITIALIZER};
-static _Atomic uint64_t assetCachedReads,assetCacheMisses,assetWarmHints;
 static int assetTraceFD=-1;
 static int assetTimingFD=-1;
 static _Atomic uint64_t assetTimingRecords;
@@ -115,7 +137,12 @@ void pg_assets_configure(const char *manifest,const char *root) {
     prefetchQueue=dispatch_queue_create("playgta5.assets.prefetch",assetBalancedQOS?dispatch_queue_attr_make_with_qos_class(DISPATCH_QUEUE_CONCURRENT,QOS_CLASS_UTILITY,0):DISPATCH_QUEUE_CONCURRENT);
     speculativeQueue=assetBalancedQOS?dispatch_queue_create("playgta5.assets.speculation",dispatch_queue_attr_make_with_qos_class(DISPATCH_QUEUE_CONCURRENT,QOS_CLASS_BACKGROUND,0)):prefetchQueue;
     pg_log(assetBalancedQOS?"Native background asset priorities: utility hints, background speculation (opt-in).":"Native background asset priorities: original.");
-    [[assetSession dataTaskWithURL:[NSURL URLWithString:[assetServer stringByAppendingString:@"/data/manifest.json"]] completionHandler:^(NSData *body,NSURLResponse *response,NSError *error){
+#if TARGET_OS_SIMULATOR
+    // Simulator profiling: PG_LOCAL_MIRROR (folder with data/) reads the Mac's copy directly.
+    const char *mirror=getenv("PG_LOCAL_MIRROR");
+    if(!localDataRoot&&!assetStreamSimulation&&mirror)localDataRoot=[[NSString stringWithUTF8String:mirror] stringByAppendingPathComponent:@"data"];
+#endif
+    if(!localDataRoot)[[assetSession dataTaskWithURL:[NSURL URLWithString:[assetServer stringByAppendingString:@"/data/manifest.json"]] completionHandler:^(NSData *body,NSURLResponse *response,NSError *error){
       if(error){NSString *message=[@"Asset server connection failed: " stringByAppendingString:error.localizedDescription];pg_log(message.UTF8String);}
       else if([(NSHTTPURLResponse *)response statusCode]==200){pg_log("Connected to the asset server.");}
       else {NSString *message=[NSString stringWithFormat:@"Asset server probe HTTP %ld, URL %@, server %@",(long)[(NSHTTPURLResponse *)response statusCode],response.URL,[(NSHTTPURLResponse *)response valueForHTTPHeaderField:@"Server"]];pg_log(message.UTF8String);}
@@ -157,10 +184,6 @@ static int64_t readAssetLegacyLocked(uint32_t id,uint64_t offset,uint8_t *destin
   if(offset>=size)return 0;length=(uint32_t)MIN((uint64_t)length,size-offset);
 #if TARGET_OS_SIMULATOR
   // Profiling uses the identical mirror directly, without a second asset cache.
-  const char *mirror=getenv("PG_LOCAL_MIRROR");
-  if(!assetStreamSimulation&&mirror){NSString *local=[[[NSString stringWithUTF8String:mirror] stringByAppendingPathComponent:@"data"] stringByAppendingPathComponent:path];
-    int descriptor=open(local.fileSystemRepresentation,O_RDONLY);
-    if(descriptor>=0){ssize_t actual=pread(descriptor,destination,length,(off_t)offset);close(descriptor);return actual;}}
 #endif
   NSString *directory=[cacheRoot stringByAppendingPathComponent:[NSString stringWithFormat:@"%u",id]];
   [[NSFileManager defaultManager] createDirectoryAtPath:directory withIntermediateDirectories:YES attributes:nil error:nil];
@@ -251,8 +274,21 @@ static int64_t readAssetPackedLocked(uint32_t id,uint64_t offset,uint8_t *destin
 }
 // Cached reads bypass fills. Missing ranges reserve blocks while downloading
 // outside the archive lock; overlapping reads wait for that one shared fill.
+static int64_t readLocalAsset(uint32_t id,uint64_t offset,uint8_t *destination,uint32_t length){
+  NSArray *entry=assetFiles[id];uint64_t size=[entry[1] unsignedLongLongValue];
+  if(!length||offset>=size)return 0;
+  length=(uint32_t)MIN((uint64_t)length,size-offset);
+  NSString *file=[localDataRoot stringByAppendingPathComponent:entry[0]];
+  int descriptor=open(file.fileSystemRepresentation,O_RDONLY);
+  if(descriptor<0){NSString *message=[@"Game file missing from your folder: " stringByAppendingString:entry[0]];pg_log(message.UTF8String);return -1;}
+  uint64_t done=0;
+  while(done<length){ssize_t n=pread(descriptor,destination+done,length-done,(off_t)(offset+done));if(n<=0)break;done+=(uint64_t)n;}
+  close(descriptor);assetReadSource=4;
+  return (int64_t)done;
+}
 static int64_t readAssetImpl(uint32_t id,uint64_t offset,uint8_t *destination,uint32_t length) {
   if(id>=assetFiles.count)return -1;
+  if(localDataRoot)return readLocalAsset(id,offset,destination,length);
   if(assetTraceFD>=0&&length){char record[96];int n=snprintf(record,sizeof record,"%u,%llu,%u\n",id,offset,length);if(n>0&&n<sizeof record)write(assetTraceFD,record,(size_t)n);}
 #if TARGET_OS_SIMULATOR
   if(assetStreamSimulation){
@@ -261,9 +297,8 @@ static int64_t readAssetImpl(uint32_t id,uint64_t offset,uint8_t *destination,ui
   if(!length||offset>=size)return 0;
   length=(uint32_t)MIN((uint64_t)length,size-offset);
   NSString *base=[packedRoot stringByAppendingPathComponent:[NSString stringWithFormat:@"%u",id]];
-  int64_t cached=pg_asset_read_cached(&assetReadHandles,id,[base stringByAppendingString:@".data"].fileSystemRepresentation,[base stringByAppendingString:@".map"].fileSystemRepresentation,size,offset,destination,length);
-  if(cached>=0){atomic_fetch_add(&assetCachedReads,1);assetReadSource=1;return cached;}
-  atomic_fetch_add(&assetCacheMisses,1);
+  int64_t cached=pg_packed_read_existing([base stringByAppendingString:@".data"].fileSystemRepresentation,[base stringByAppendingString:@".map"].fileSystemRepresentation,size,offset,destination,length);
+  if(cached>=0){assetReadSource=1;return cached;}
 #if TARGET_OS_SIMULATOR
   }
 #endif
@@ -271,15 +306,59 @@ static int64_t readAssetImpl(uint32_t id,uint64_t offset,uint8_t *destination,ui
   @try {return readAssetPackedLocked(id,offset,destination,length);}
   @finally {[lock unlock];}
 }
+// Health counters for the periodic log line (Settings > Share log).
+static _Atomic uint64_t healthReads,healthReadBytes,healthReadErrors,healthShortReads,healthSlowReads,healthReadMicros;
+void PGAssetHealth(uint64_t out[6]){out[0]=healthReads;out[1]=healthReadBytes;out[2]=healthReadErrors;out[3]=healthShortReads;out[4]=healthSlowReads;out[5]=healthReadMicros;}
+// Sandbox on the GTA VI test map: env_test.meta lists only the testbed script archive (about 20
+// test scripts), so the startup script finds no main, phone or cheat app there. Reads of that
+// file get the GTA V map's script archive plus the cheat-app overlay instead. The engine knows
+// every file's size from the manifest, so the rewrite keeps the size: indentation and carriage
+// returns are dropped and spaces pad the end. A file that doesn't match is left alone.
+static NSData *envTestMeta;
+static NSData *envTestMetaRewrite(NSData *original){
+  NSString *text=[[NSString alloc] initWithData:original encoding:NSUTF8StringEncoding];
+  NSString *testbed=@"\t\t<Item>\r\n\t\t\t<filename>PLATFORM:/LEVELS/TESTBED/SCRIPT/SCRIPT.RPF</filename>\r\n\t\t\t<fileType>RPF_FILE</fileType>\r\n\t\t</Item>\r\n";
+  if(!text||[text componentsSeparatedByString:testbed].count!=2)return nil;
+  NSString *gta5=@"<Item><filename>platform:/levels/gta5/script/script.rpf</filename><fileType>RPF_FILE</fileType></Item>\n"
+    @"<Item><filename>platform:/levels/gta5/script/script_wasm.rpf</filename><fileType>RPF_FILE</fileType><overlay value=\"true\"/></Item>\n";
+  text=[text stringByReplacingOccurrencesOfString:testbed withString:gta5];
+  text=[[text stringByReplacingOccurrencesOfString:@"\t" withString:@""] stringByReplacingOccurrencesOfString:@"\r" withString:@""];
+  NSMutableData *out=[[text dataUsingEncoding:NSUTF8StringEncoding] mutableCopy];
+  if(out.length>original.length)return nil;
+  NSMutableData *pad=[NSMutableData dataWithLength:original.length-out.length];memset(pad.mutableBytes,' ',pad.length);
+  [out appendData:pad];return out;
+}
+static void envTestMetaOverlay(uint32_t id,uint64_t offset,uint8_t *destination,int64_t count){
+  if(count<=0||![assetFiles[id][0] isEqualToString:@"common/data/levels/env_test/env_test.meta"])return;
+  @synchronized([NSNull null]) {
+    if(!envTestMeta){
+      uint64_t size=[assetFiles[id][1] unsignedLongLongValue];
+      NSMutableData *original=[NSMutableData dataWithLength:(NSUInteger)size];
+      NSData *rewritten=readAssetImpl(id,0,original.mutableBytes,(uint32_t)size)==(int64_t)size?envTestMetaRewrite(original):nil;
+      envTestMeta=rewritten?:[NSData data];
+      pg_log(rewritten?"GTA VI test map: using the GTA V map's scripts (phone, cheats, free roam).":"GTA VI test map: its level file is not the expected one; the test scripts stay.");
+    }
+    if(envTestMeta.length&&offset<envTestMeta.length)
+      memcpy(destination,(const uint8_t *)envTestMeta.bytes+offset,(size_t)MIN((uint64_t)count,envTestMeta.length-offset));
+  }
+}
 static int64_t readAsset(uint32_t id,uint64_t offset,uint8_t *destination,uint32_t length){
   assetReadNetworkMS=assetReadLockMS=0;assetReadNetworkBytes=0;assetReadSource=2;
-  double start=assetTimingFD>=0?assetNowMS():0;int64_t result=readAssetImpl(id,offset,destination,length);
+  double healthStart=assetNowMS();
+  double start=assetTimingFD>=0?healthStart:0;int64_t result=readAssetImpl(id,offset,destination,length);
+  envTestMetaOverlay(id,offset,destination,result);
+  double took=assetNowMS()-healthStart;
+  atomic_fetch_add(&healthReads,1);atomic_fetch_add(&healthReadMicros,(uint64_t)(took*1000));
+  if(result<0)atomic_fetch_add(&healthReadErrors,1);
+  else{atomic_fetch_add(&healthReadBytes,(uint64_t)result);if((uint64_t)result<length)atomic_fetch_add(&healthShortReads,1);}
+  if(took>250)atomic_fetch_add(&healthSlowReads,1);
   if(assetTimingFD>=0&&atomic_fetch_add(&assetTimingRecords,1)<200000){char record[256];int n=snprintf(record,sizeof record,"%.3f,%.3f,%u,%llu,%u,%lld,%u,%u,%.3f,%.3f,%llu\n",start,assetNowMS(),id,offset,length,result,assetReadSource,assetPrefetchRead,assetReadNetworkMS,assetReadLockMS,assetReadNetworkBytes);if(n>0&&n<sizeof record)write(assetTimingFD,record,(size_t)n);}
   return result;
 }
 static _Atomic bool assetEngineBooted;
 void pg_assets_prewarm(void){
   atomic_store(&assetEngineBooted,true);
+  if(localDataRoot){pg_log("Startup asset warming skipped: the game files are on this device.");pg_log("ASSET_WARM_COMPLETE");return;}
 #if TARGET_OS_SIMULATOR
   if(!assetStreamSimulation||[NSProcessInfo.processInfo.arguments containsObject:@"--skip-asset-warm"]){pg_log("Simulator startup asset warming skipped.");return;}
 #endif
@@ -359,16 +438,7 @@ static void pumpAssetHints(void){
     uint64_t size=[assetFiles[hint.id][1] unsignedLongLongValue];if(hint.offset>=size)continue;
     hint.length=(uint32_t)MIN((uint64_t)hint.length,size-hint.offset);
     NSString *base=[packedRoot stringByAppendingPathComponent:[NSString stringWithFormat:@"%u",hint.id]];
-    if(pg_packed_present_bytes([base stringByAppendingString:@".data"].fileSystemRepresentation,[base stringByAppendingString:@".map"].fileSystemRepresentation,size,hint.offset,hint.length)==hint.length){
-      hintsCached++;
-      // Downloaded means on disk, not resident in the filesystem page cache.
-      // Let the kernel warm the next useful range without copying whole archives.
-      if(!hint.speculative && pg_asset_read_warm(&assetReadHandles,hint.id,
-          [base stringByAppendingString:@".data"].fileSystemRepresentation,
-          [base stringByAppendingString:@".map"].fileSystemRepresentation,size,hint.offset,hint.length))
-        atomic_fetch_add(&assetWarmHints,1);
-      continue;
-    }
+    if(pg_packed_present_bytes([base stringByAppendingString:@".data"].fileSystemRepresentation,[base stringByAppendingString:@".map"].fileSystemRepresentation,size,hint.offset,hint.length)==hint.length){hintsCached++;continue;}
     PGAssetHint job=hint;atomic_fetch_add(&activePrefetch,1);if(job.speculative)atomic_fetch_add(&activeSpeculative,1);hintsScheduled++;
     dispatch_block_t work=^{@autoreleasepool {
       assetPrefetchRead=true;assetSpeculativeRead=job.speculative;
@@ -384,7 +454,7 @@ static void pumpAssetHints(void){
 // threads are waiting for a large region file. It follows the mirror protocol:
 // bit 30 selects speculation, and only the lower 30 bits are a byte count.
 static void *assetHintLoop(void *unused){
-  pthread_setname_np("gta.asset.hints");pthread_set_qos_class_self_np(QOS_CLASS_UTILITY,0);
+  pthread_setname_np("gta.asset.hints");if(assetBalancedQOS)pthread_set_qos_class_self_np(QOS_CLASS_UTILITY,0);
   wasm_rt_trap_t trap=wasm_rt_impl_try();if(trap){pg_log("Native asset hint worker encountered invalid engine memory.");return NULL;}
   _Atomic int32_t *table=pg_pointer(assetHost,assetTable,64);double report=assetNowMS();
   for(;;){int32_t bell=atomic_load(table);@autoreleasepool {
@@ -397,12 +467,11 @@ static void *assetHintLoop(void *unused){
       }
       atomic_store(table+5,(int32_t)tail);
     }
-    pumpAssetHints();double now=assetNowMS();if(now-report>=10000){char line[256];snprintf(line,sizeof line,"Native asset hints: normal %llu, speculative %llu, scheduled %llu, cached %llu, lapped %llu, queues %u/%u, active %d/%d.",hintsNormalSeen,hintsLowSeen,hintsScheduled,hintsCached,hintsLapped,normalHints.count,lowHints.count,atomic_load(&activePrefetch),atomic_load(&activeSpeculative));pg_log(line);
-      char io[192];snprintf(io,sizeof io,"Native local streaming: %llu cached reads, %llu cache misses, %llu disk warm hints; 64 bounded reader slots.",atomic_load(&assetCachedReads),atomic_load(&assetCacheMisses),atomic_load(&assetWarmHints));pg_log(io);report=now;}
+    pumpAssetHints();double now=assetNowMS();if(now-report>=10000){char line[256];snprintf(line,sizeof line,"Native asset hints: normal %llu, speculative %llu, scheduled %llu, cached %llu, lapped %llu, queues %u/%u, active %d/%d.",hintsNormalSeen,hintsLowSeen,hintsScheduled,hintsCached,hintsLapped,normalHints.count,lowHints.count,atomic_load(&activePrefetch),atomic_load(&activeSpeculative));pg_log(line);report=now;}
   }pg_atomic_wait32(w2c_env_memory(assetHost),assetTable,bell,10000000);}
 }
 static void *assetLoop(void *unused) {
-  char workerName[32];snprintf(workerName,sizeof workerName,"gta.asset.read.%ld",(long)(intptr_t)unused);pthread_setname_np(workerName);pthread_set_qos_class_self_np(QOS_CLASS_USER_INITIATED,0);
+  char workerName[32];snprintf(workerName,sizeof workerName,"gta.asset.read.%ld",(long)(intptr_t)unused);pthread_setname_np(workerName);
   wasm_rt_trap_t trap=wasm_rt_impl_try();if(trap){pg_log("Native asset worker encountered invalid engine memory.");return NULL;}
   _Atomic int32_t *table=pg_pointer(assetHost,assetTable,64);
   for(;;) {
@@ -450,7 +519,7 @@ void w2c_env_wasm_httpfs_io_start_js(struct w2c_env *host,u64 table) {
 
 void PGAssetCachePrepare(const char *manifestPath,const char *filesRoot){pg_assets_configure(manifestPath,filesRoot);}
 bool PGAssetPreloadSupported(void){
-  if(!assetFiles.count||!packedRoot)return false;
+  if(!assetFiles.count||!packedRoot||localDataRoot)return false;
 #if TARGET_OS_SIMULATOR
   return assetStreamSimulation;
 #else
@@ -629,7 +698,6 @@ bool PGAssetCacheRemoveAll(uint64_t *freedBytes){
   if(freedBytes)*freedBytes=0;
   if(!cacheRoot||atomic_load(&preloadRunning)||atomic_load(&assetEngineBooted))return false;
   uint64_t cached=0;PGAssetPreloadMeasure(NULL,NULL,&cached,NULL);
-  pg_asset_read_cache_close(&assetReadHandles);
   NSFileManager *files=NSFileManager.defaultManager;NSError *error=nil;
   // One explicit directory: this manifest version's cache (packed and legacy).
   if([files fileExistsAtPath:cacheRoot]&&![files removeItemAtPath:cacheRoot error:&error]){pg_log([@"Asset cache removal failed: " stringByAppendingString:error.localizedDescription].UTF8String);return false;}

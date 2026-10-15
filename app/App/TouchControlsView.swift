@@ -27,10 +27,28 @@ enum ControlStyle {
     static let accent = UIColor(red: 0.365, green: 0.714, blue: 0.898, alpha: 1)
     /// SF Symbols for controls that have no generated icon.
     static let fallbackSymbol: [String: String] = [
-        "trainer": "slider.horizontal.3", "radio": "radio", "look_back": "arrow.uturn.backward", "up": "chevron.up", "down": "chevron.down",
+        "radio": "radio", "look_back": "arrow.uturn.backward", "up": "chevron.up", "down": "chevron.down",
         "left": "chevron.left", "right": "chevron.right", "accept": "checkmark", "back": "arrow.uturn.left",
         "tab_left": "chevron.left.2", "tab_right": "chevron.right.2", "dive": "arrow.down.to.line",
-        "surface": "arrow.up.to.line", "crouch": "figure.walk", "pedal": "bicycle"]
+        "surface": "arrow.up.to.line", "crouch": "figure.walk", "pedal": "bicycle",
+        "switch_character": "person.2.fill", "special_ability": "bolt.circle.fill", "interact": "hand.point.right.fill",
+        "detonate": "burst.fill", "zoom_in": "plus.magnifyingglass", "zoom_out": "minus.magnifyingglass",
+        "weapon_prev": "chevron.left", "weapon_next": "chevron.right", "throttle_up": "chevron.up.2",
+        "throttle_down": "chevron.down.2", "yaw_left": "rotate.left.fill", "yaw_right": "rotate.right.fill",
+        "tow_hook": "car.side.rear.tow.hitch.fill", "tow_arm_up": "arrow.up.to.line", "tow_arm_down": "arrow.down.to.line", "roof": "convertible.side.arrowtriangle.up.arrowtriangle.down.fill",
+        "steer_left": "arrowtriangle.left.fill", "steer_right": "arrowtriangle.right.fill",
+        "phone_option": "circle.grid.3x3.fill", "taxi_hurry": "hare.fill", "taxi_stop": "stop.fill"]
+    /// iOS 16 and 17 have no tow hitch or convertible symbols (they came in iOS 18).
+    static let olderSymbol: [String: String] = [
+        "tow_hook": "truck.pickup.side.fill", "roof": "car.side.arrowtriangle.up.arrowtriangle.down.fill"]
+    /// Model name hashes (joaat) from the game's vehicles.meta: tow trucks, whose hook releases
+    /// with INPUT_VEH_GRAPPLING_HOOK, and cars with an animated convertible roof (animConvRoofDictName).
+    static let towTrucks: Set<UInt32> = [0xB12314E0 /* towtruck */, 0xE5A2D6C6 /* towtruck2 */]
+    static let taxi: UInt32 = 0xC703DB5F
+    static let convertibles: Set<UInt32> = [
+        0xA8E38B01 /* ninef2 */, 0x7B8AB45F /* carbonizzare */, 0x13B57D8A /* cogcabrio */, 0xFAAD85EE /* felon2 */,
+        0xB9CB3B69 /* issi2 */, 0x679450AF /* rapidgt2 */, 0x3412AE2D /* sentinel2 */, 0xB8E2AE18 /* zion2 */,
+        0x16E478C1 /* surano */, 0x5B42A5C4 /* tornado2 */]
 }
 
 /// One on-screen control: a glyph in a circle (or a rounded pedal), no caption.
@@ -77,6 +95,7 @@ final class ControlButton: UIView {
     func setIcon(_ iconName: String) {
         let image = UIImage(named: "icon_" + iconName)
             ?? UIImage(systemName: ControlStyle.fallbackSymbol[iconName] ?? "circle", withConfiguration: UIImage.SymbolConfiguration(weight: .bold))
+            ?? UIImage(systemName: ControlStyle.olderSymbol[iconName] ?? "circle", withConfiguration: UIImage.SymbolConfiguration(weight: .bold))
         icon.image = image?.withRenderingMode(.alwaysTemplate)
     }
 
@@ -102,7 +121,7 @@ final class ControlButton: UIView {
         layer.borderColor = UIColor.white.withAlphaComponent(pressed ? 0.9 : 0.28).cgColor
         icon.tintColor = pressed ? UIColor.black.withAlphaComponent(0.9) : UIColor.white.withAlphaComponent(0.92)
         ring.opacity = active && !pressed ? 1 : 0
-        accessibilityValue = pressed ? "Held" : active ? "On" : nil
+        accessibilityValue = pressed ? AppLanguage.choose("Held") : active ? AppLanguage.choose("On") : nil
     }
 
     func setPressed(_ value: Bool) {
@@ -203,91 +222,271 @@ final class FloatingStick: UIView {
 /// there is no manual mode switch.
 final class TouchControlsView: UIView {
     var inputChanged: (() -> Void)?
+    /// In the layout editor: controls are shown but not played, and hidden controls stay visible (dimmed).
+    var editing = false
+    /// The control selected in the layout editor (drawn with a highlight).
+    weak var highlighted: ControlButton? { didSet { updateHighlight() } }
     var openSettings: (() -> Void)?
     var openTrainer: (() -> Void)?
+    var openSandboxSave: (() -> Void)?
+    var sandboxSaveVisible = false { didSet { if sandboxSaveVisible != oldValue { updateVisibility() } } }
+    private let trainer = ControlButton("trainer", icon: "settings", label: "Trainer")
+    private let save = ControlButton("save", icon: "phone", label: "Save sandbox position")
+    /// A line for the log when the game state behind the situational buttons changes.
+    var hintsChanged: ((String) -> Void)?
     private(set) var context = ControlContext.onFoot
 
     private enum Role {
         case button(ControlButton)
-        case moveStick, look, steer, flightRight
+        case moveStick, look, steer
+        /// Radio: a tap is the next station; held, the wheel opens and the same finger picks one.
+        case radioWheel(start: CGPoint, current: CGPoint, since: CFTimeInterval)
         case weaponWheel(start: CGPoint, current: CGPoint)
+        /// Character switch: D-pad down held, the same finger points at Michael, Franklin or Trevor.
+        case characterWheel(start: CGPoint, current: CGPoint)
         case fireLook(ControlButton)
     }
     private var roles: [ObjectIdentifier: Role] = [:]
 
     private let moveStick = FloatingStick()
-    private let rightStick = FloatingStick()
     private let lookStick = FloatingStick()
-    // Incremental camera gestures never behave as a held right stick.
-    private var swipeLook = SwipeLook()
+    /// Where a finger pressed Aim/Fire; dragging from there works as a stick.
+    private var dragOrigins: [ObjectIdentifier: (start: CGPoint, current: CGPoint)] = [:]
+    // Each finger keeps its original role from touchesBegan. Only a look-role
+    // finger, or a right-hand Aim/Fire drag, is allowed to queue camera travel.
+    private var pendingCameraTravel = CGPoint.zero
+    private var fractionalMousePixels = CGPoint.zero
+    private var lastCameraMode: GameSettings.CameraTouchMode = .stick
+    private var cameraSwipeAvailable: Bool {
+        context != .menu && !phoneDock && !gamePhoneOut && !promptActive && !context.flying
+    }
+    private var swipeCameraEnabled: Bool {
+        GameSettings.shared.cameraTouchMode != .stick && cameraSwipeAvailable
+    }
+    private func isSelectionWheel(_ role: Role) -> Bool {
+        switch role {
+        case .weaponWheel, .characterWheel, .radioWheel: return true
+        default: return false
+        }
+    }
+    /// Only the experimental mouse path needs pointer focus/lock.
+    var experimentalMouseLookActive: Bool {
+        swipeCameraEnabled && GameSettings.shared.cameraTouchMode == .swipeMouse && !has(isSelectionWheel)
+    }
+    private func clearCameraTravel() {
+        pendingCameraTravel = .zero
+        fractionalMousePixels = .zero
+        PGClearCameraSwipe()
+    }
+    private func trackCameraSwipe(from previous: CGPoint, to point: CGPoint) {
+        guard swipeCameraEnabled, !has(isSelectionWheel) else { return }
+        pendingCameraTravel.x += point.x - previous.x
+        pendingCameraTravel.y += point.y - previous.y
+    }
+    /// Flush only after the gesture roles have been reconciled, before sending
+    /// the pad. The mouse path feeds native mouse deltas but does not replace
+    /// the virtual pad, so we can observe whether the game still grants aim assist.
+    private func flushCameraTravel() {
+        let mode = GameSettings.shared.cameraTouchMode
+        if mode != lastCameraMode { clearCameraTravel(); lastCameraMode = mode }
+        guard swipeCameraEnabled, !has(isSelectionWheel) else {
+            clearCameraTravel()
+            return
+        }
+        let settings = GameSettings.shared
+        let gain = CGFloat(mode == .swipeMouse
+            ? (aiming ? settings.mouseAimSensitivity : settings.mouseLookSensitivity)
+            : (aiming ? settings.swipeAimSensitivity : settings.swipeLookSensitivity))
+        let raw = CGPoint(x: pendingCameraTravel.x * gain, y: pendingCameraTravel.y * gain)
+        pendingCameraTravel = .zero
+        guard raw != .zero else { return }
+        switch mode {
+        case .stick: break
+        case .swipePad:
+            // Existing proven engine-thread bridge expects rightY positive up.
+            PGQueueCameraSwipe(Float(raw.x), Float(-raw.y))
+        case .swipeMouse:
+            // UIKit is Y-down, matching the engine's relative mouse pixels.
+            // Preserve subpixel movement so very slow aiming is not lost.
+            // Drop rather than defer an abnormally large single-frame jump:
+            // deferred overflow would look like camera glide after finger-up.
+            let total = CGPoint(x: max(-1600, min(1600, raw.x + fractionalMousePixels.x)),
+                                y: max(-1600, min(1600, raw.y + fractionalMousePixels.y)))
+            let dx = Int32(total.x.rounded(.towardZero))
+            let dy = Int32(total.y.rounded(.towardZero))
+            fractionalMousePixels = CGPoint(x: total.x - CGFloat(dx), y: total.y - CGFloat(dy))
+            if dx != 0 || dy != 0 { PGMouseInput(dx, dy, 0) }
+        }
+    }
+
     private var sprintSince: CFTimeInterval?
     private var aimToggled = false
     private var lastFireTime: CFTimeInterval = 0
     private var fireStartedAt: CFTimeInterval?
-    private var throttle: CGFloat = 0
+    /// Buttons sent for a set time (special ability, radio taps), so the game sees every tap.
+    private var pulses: [(buttons: PadButtons, until: CFTimeInterval)] = []
+    /// When each pad bit was last pressed: every press lasts at least `minimumPress`.
+    private var pressedAt: [UInt32: CFTimeInterval] = [:]
+    private var lastHeld = PadButtons()
+    private var radioDirection: (Float, Float)?
+    private static let minimumPress: CFTimeInterval = 0.07
+    /// From the engine (PGReadControlHints): which situational buttons apply right now.
+    private var hints = PGControlHints()
     private var exitHoldStart: CFTimeInterval?
     private var phoneDock = false
     private var lastDockInput: CFTimeInterval = 0
+    /// Game state (PGGameStatus): the phone is out on screen, and a full-screen prompt waits for
+    /// Accept/Back (player control off outside cutscenes, e.g. Mission failed, or a warning screen).
+    private var gamePhoneOut = false
+    private var phoneRequestedAt: CFTimeInterval?
+    private var promptSince: CFTimeInterval?
+    private var promptActive = false
+    /// Story mode only: the character switch button.
+    var characterSwitchEnabled = false { didSet { if characterSwitchEnabled != oldValue { updateVisibility() } } }
     private var pedalClock: Double = 0
     private let haptics = UIImpactFeedbackGenerator(style: .light)
 
     // On foot
-    private let fire = ControlButton("fire", icon: "fire", label: "Fire")
-    private let aim = ControlButton("aim", icon: "aim", label: "Aim")
-    private let leftFire = ControlButton("leftFire", icon: "fire", label: "Fire, left hand")
-    private let jump = ControlButton("jump", icon: "jump", label: "Jump")
-    private let enter = ControlButton("enter", icon: "enter_exit", label: "Enter vehicle")
-    private let weapons = ControlButton("weapons", icon: "weapons", label: "Weapon wheel")
-    private let reload = ControlButton("reload", icon: "reload", label: "Reload")
-    private let cover = ControlButton("cover", icon: "cover", label: "Take cover")
-    private let crouch = ControlButton("crouch", icon: "crouch", label: "Stealth")
+    private let fire = ControlButton("fire", icon: "fire", label: AppLanguage.choose("Fire"))
+    private let aim = ControlButton("aim", icon: "aim", label: AppLanguage.choose("Aim"))
+    private let leftFire = ControlButton("leftFire", icon: "fire", label: AppLanguage.choose("Fire, left hand"))
+    private let jump = ControlButton("jump", icon: "jump", label: AppLanguage.choose("Jump"))
+    private let enter = ControlButton("enter", icon: "enter_exit", label: AppLanguage.choose("Enter vehicle"))
+    private let weapons = ControlButton("weapons", icon: "weapons", label: AppLanguage.choose("Weapon wheel"))
+    private let reload = ControlButton("reload", icon: "reload", label: AppLanguage.choose("Reload"))
+    private let cover = ControlButton("cover", icon: "cover", label: AppLanguage.choose("Take cover"))
+    private let crouch = ControlButton("crouch", icon: "crouch", label: AppLanguage.choose("Stealth"))
+    private let switcher = ControlButton("switchCharacter", icon: "switch_character", label: AppLanguage.choose("Switch character"))
+    private let special = ControlButton("special", icon: "special_ability", label: AppLanguage.choose("Special ability"))
+    private let interact = ControlButton("interact", icon: "interact", label: AppLanguage.choose("Interact"))
+    private let detonate = ControlButton("detonate", icon: "detonate", label: AppLanguage.choose("Detonate sticky bombs"))
+    private let zoomIn = ControlButton("zoomIn", icon: "zoom_in", label: AppLanguage.choose("Zoom in"))
+    private let zoomOut = ControlButton("zoomOut", icon: "zoom_out", label: AppLanguage.choose("Zoom out"))
+    private let weaponPrev = ControlButton("weaponPrev", icon: "weapon_prev", label: AppLanguage.choose("Previous weapon in this slot"))
+    private let weaponNext = ControlButton("weaponNext", icon: "weapon_next", label: AppLanguage.choose("Next weapon in this slot"))
     // Vehicles
-    private let gas = ControlButton("gas", icon: "gas", label: "Gas")
-    private let brake = ControlButton("brake", icon: "brake", label: "Brake and reverse")
-    private let handbrake = ControlButton("handbrake", icon: "handbrake", label: "Handbrake")
-    private let driveBy = ControlButton("driveBy", icon: "fire", label: "Aim and shoot from vehicle")
-    private let horn = ControlButton("horn", icon: "horn", label: "Horn")
-    private let lookBack = ControlButton("lookBack", icon: "look_back", label: "Look behind")
-    private let vehicleWeapon = ControlButton("vehicleWeapon", icon: "vehicle_weapon", label: "Next vehicle weapon")
-    private let dive = ControlButton("dive", icon: "dive", label: "Dive")
-    private let surface = ControlButton("surface", icon: "surface", label: "Surface")
+    private let gas = ControlButton("gas", icon: "gas", label: AppLanguage.choose("Gas"))
+    private let brake = ControlButton("brake", icon: "brake", label: AppLanguage.choose("Brake and reverse"))
+    private let handbrake = ControlButton("handbrake", icon: "handbrake", label: AppLanguage.choose("Handbrake"))
+    // Settings › Steering buttons: left/right buttons instead of the steering stick.
+    private let steerLeft = ControlButton("steer_left", icon: "steer_left", label: AppLanguage.choose("Steer left"))
+    private let steerRight = ControlButton("steer_right", icon: "steer_right", label: AppLanguage.choose("Steer right"))
+    private let driveBy = ControlButton("driveBy", icon: "fire", label: AppLanguage.choose("Aim and shoot from vehicle"))
+    private let horn = ControlButton("horn", icon: "horn", label: AppLanguage.choose("Horn"))
+    private let lookBack = ControlButton("lookBack", icon: "look_back", label: AppLanguage.choose("Look behind"))
+    private let vehicleWeapon = ControlButton("vehicleWeapon", icon: "vehicle_weapon", label: AppLanguage.choose("Next vehicle weapon"))
+    private let towHook = ControlButton("towHook", icon: "tow_hook", label: AppLanguage.choose("Release tow hook"))
+    private let roof = ControlButton("roof", icon: "roof", label: AppLanguage.choose("Raise or lower the roof"))
+    private let towArmUp = ControlButton("towArmUp", icon: "tow_arm_up", label: AppLanguage.choose("Raise tow arm"))
+    private let towArmDown = ControlButton("towArmDown", icon: "tow_arm_down", label: AppLanguage.choose("Lower tow arm"))
+    private let dive = ControlButton("dive", icon: "dive", label: AppLanguage.choose("Dive"))
+    private let surface = ControlButton("surface", icon: "surface", label: AppLanguage.choose("Surface"))
     // Aircraft
-    private let airFire = ControlButton("airFire", icon: "special", label: "Fire aircraft weapon")
-    private let gear = ControlButton("gear", icon: "landing_gear", label: "Landing gear")
+    private let airFire = ControlButton("airFire", icon: "special", label: AppLanguage.choose("Fire aircraft weapon"))
+    private let gear = ControlButton("gear", icon: "landing_gear", label: AppLanguage.choose("Landing gear"))
+    private let throttleUp = ControlButton("throttleUp", icon: "throttle_up", label: AppLanguage.choose("Throttle up, climb"))
+    private let throttleDown = ControlButton("throttleDown", icon: "throttle_down", label: AppLanguage.choose("Throttle down, descend"))
+    private let yawLeft = ControlButton("yawLeft", icon: "yaw_left", label: AppLanguage.choose("Rudder left"))
+    private let yawRight = ControlButton("yawRight", icon: "yaw_right", label: AppLanguage.choose("Rudder right"))
     // Utility bar
-    private let camera = ControlButton("camera", icon: "camera", label: "Change camera")
-    private let phone = ControlButton("phone", icon: "phone", label: "Phone")
-    private let pause = ControlButton("pause", icon: "pause", label: "Pause menu")
-    private let trainer = ControlButton("trainer", icon: "trainer", label: "Trainer")
-    private let settings = ControlButton("settings", icon: "settings", label: "Settings")
-    private let lights = ControlButton("lights", icon: "lights", label: "Headlights")
-    private let radio = ControlButton("radio", icon: "radio", label: "Radio")
+    private let camera = ControlButton("camera", icon: "camera", label: AppLanguage.choose("Change camera"))
+    private let phone = ControlButton("phone", icon: "phone", label: AppLanguage.choose("Phone"))
+    private let pause = ControlButton("pause", icon: "pause", label: AppLanguage.choose("Pause menu"))
+    private let settings = ControlButton("settings", icon: "settings", label: AppLanguage.choose("Settings"))
+    private let lights = ControlButton("lights", icon: "lights", label: AppLanguage.choose("Headlights"))
+    private let radio = ControlButton("radio", icon: "radio", label: AppLanguage.choose("Radio"))
     // Menu and phone dock
-    private let up = ControlButton("up", icon: "up", label: "Up")
-    private let down = ControlButton("down", icon: "down", label: "Down")
-    private let left = ControlButton("left", icon: "left", label: "Left")
-    private let right = ControlButton("right", icon: "right", label: "Right")
-    private let accept = ControlButton("accept", icon: "accept", label: "Select")
-    private let back = ControlButton("back", icon: "back", label: "Back")
-    private let tabLeft = ControlButton("tabLeft", icon: "tab_left", label: "Previous tab")
-    private let tabRight = ControlButton("tabRight", icon: "tab_right", label: "Next tab")
+    private let up = ControlButton("up", icon: "up", label: AppLanguage.choose("Up"))
+    private let down = ControlButton("down", icon: "down", label: AppLanguage.choose("Down"))
+    private let left = ControlButton("left", icon: "left", label: AppLanguage.choose("Left"))
+    private let right = ControlButton("right", icon: "right", label: AppLanguage.choose("Right"))
+    private let accept = ControlButton("accept", icon: "accept", label: AppLanguage.choose("Select"))
+    private let back = ControlButton("back", icon: "back", label: AppLanguage.choose("Back"))
+    // The phone's X (Xbox) / Square: keypad for a custom number, and the phone's other options.
+    private let phoneOption = ControlButton("phone_option", icon: "phone_option", label: AppLanguage.choose("Phone options"))
+    // Taxi ride: X hurries the driver, B stops the taxi.
+    private let taxiHurry = ControlButton("taxi_hurry", icon: "taxi_hurry", label: AppLanguage.choose("Hurry up"))
+    private let taxiStop = ControlButton("taxi_stop", icon: "taxi_stop", label: AppLanguage.choose("Stop the taxi"))
+    private let tabLeft = ControlButton("tabLeft", icon: "tab_left", label: AppLanguage.choose("Previous tab"))
+    private let tabRight = ControlButton("tabRight", icon: "tab_right", label: AppLanguage.choose("Next tab"))
 
     private var allButtons: [ControlButton] {
-        [fire, aim, leftFire, jump, enter, weapons, reload, cover, crouch, gas, brake, handbrake, driveBy, horn, lookBack,
-         vehicleWeapon, dive, surface, airFire, gear, camera, phone, pause, trainer, settings, lights, radio,
-         up, down, left, right, accept, back, tabLeft, tabRight]
+        [trainer, save, fire, aim, leftFire, jump, enter, weapons, reload, cover, crouch, switcher, special, interact, detonate, zoomIn, zoomOut,
+         weaponPrev, weaponNext, gas, brake, handbrake, steerLeft, steerRight, driveBy, horn, lookBack,
+         vehicleWeapon, towHook, towArmUp, towArmDown, roof, dive, surface, airFire, gear, throttleUp, throttleDown, yawLeft, yawRight, camera, phone, pause, settings, lights, radio,
+         up, down, left, right, accept, back, phoneOption, taxiHurry, taxiStop, tabLeft, tabRight]
     }
+    /// Refresh accessibility names for the active language without recreating controls.
+    func refreshLanguage() {
+        let labels: [String: String] = [
+            "fire": AppLanguage.choose("Fire"),
+            "aim": AppLanguage.choose("Aim"),
+            "leftFire": AppLanguage.choose("Fire, left hand"),
+            "jump": AppLanguage.choose("Jump"),
+            "enter": AppLanguage.choose("Enter vehicle"),
+            "weapons": AppLanguage.choose("Weapon wheel"),
+            "reload": AppLanguage.choose("Reload"),
+            "cover": AppLanguage.choose("Take cover"),
+            "crouch": AppLanguage.choose("Stealth"),
+            "switchCharacter": AppLanguage.choose("Switch character"),
+            "gas": AppLanguage.choose("Gas"),
+            "brake": AppLanguage.choose("Brake and reverse"),
+            "handbrake": AppLanguage.choose("Handbrake"),
+            "driveBy": AppLanguage.choose("Aim and shoot from vehicle"),
+            "horn": AppLanguage.choose("Horn"),
+            "lookBack": AppLanguage.choose("Look behind"),
+            "vehicleWeapon": AppLanguage.choose("Next vehicle weapon"),
+            "towHook": AppLanguage.choose("Release tow hook"),
+            "roof": AppLanguage.choose("Raise or lower the roof"),
+            "towArmUp": AppLanguage.choose("Raise tow arm"),
+            "towArmDown": AppLanguage.choose("Lower tow arm"),
+            "dive": AppLanguage.choose("Dive"),
+            "surface": AppLanguage.choose("Surface"),
+            "airFire": AppLanguage.choose("Fire aircraft weapon"),
+            "gear": AppLanguage.choose("Landing gear"),
+            "yawRight": AppLanguage.choose("Rudder right"),
+            "yawLeft": AppLanguage.choose("Rudder left"),
+            "throttleDown": AppLanguage.choose("Throttle down, descend"),
+            "throttleUp": AppLanguage.choose("Throttle up, climb"),
+            "weaponNext": AppLanguage.choose("Next weapon in this slot"),
+            "weaponPrev": AppLanguage.choose("Previous weapon in this slot"),
+            "zoomOut": AppLanguage.choose("Zoom out"),
+            "zoomIn": AppLanguage.choose("Zoom in"),
+            "special": AppLanguage.choose("Special ability"),
+            "camera": AppLanguage.choose("Change camera"),
+            "phone": AppLanguage.choose("Phone"),
+            "pause": AppLanguage.choose("Pause menu"),
+            "settings": AppLanguage.choose("Settings"),
+            "lights": AppLanguage.choose("Headlights"),
+            "radio": AppLanguage.choose("Radio"),
+            "up": AppLanguage.choose("Up"),
+            "down": AppLanguage.choose("Down"),
+            "left": AppLanguage.choose("Left"),
+            "right": AppLanguage.choose("Right"),
+            "accept": AppLanguage.choose("Select"),
+            "back": AppLanguage.choose("Back"),
+            "tabLeft": AppLanguage.choose("Previous tab"),
+            "tabRight": AppLanguage.choose("Next tab"),
+            "steer_left": AppLanguage.choose("Steer left"),
+            "steer_right": AppLanguage.choose("Steer right"),
+            "phone_option": AppLanguage.choose("Phone options"),
+            "taxi_hurry": AppLanguage.choose("Hurry up"),
+            "taxi_stop": AppLanguage.choose("Stop the taxi"),
+        ]
+        for button in allButtons { if let label = labels[button.name] { button.accessibilityLabel = label } }
+        updateVisibility()
+    }
+
     private var visible: [ControlButton] = []
 
     override init(frame: CGRect) {
         super.init(frame: frame)
         isMultipleTouchEnabled = true
         addSubview(moveStick)
-        addSubview(rightStick)
         addSubview(lookStick)
         for button in allButtons { button.alpha = 0; addSubview(button) }
-        for pedal in [gas, brake, dive, surface] { pedal.isPedal = true }
-        for button in [gas, brake, handbrake, dive, surface] { button.slideTarget = true }
+        for pedal in [gas, brake, dive, surface, throttleUp, throttleDown] { pedal.isPedal = true }
+        for button in [gas, brake, handbrake, dive, surface, throttleUp, throttleDown] { button.slideTarget = true }
         updateVisibility()
     }
     required init?(coder: NSCoder) { fatalError("init(coder:) has not been implemented") }
@@ -301,52 +500,131 @@ final class TouchControlsView: UIView {
         // but a thumb on the move stick keeps steering the new vehicle.
         let carryStick = !next.flying && next != .menu && (next.driving != context.driving)
         reset(publish: false, keepStickFinger: carryStick)
-        throttle = 0
         context = next
-        phoneDock = false
+        if next == .menu || !gamePhoneOut { phoneDock = false }
         updateVisibility()
         setNeedsLayout()
     }
 
     private func computeVisible() -> [ControlButton] {
-        let utility: [ControlButton] = context.driving || context.flying ? [radio, lights, camera, phone, pause, trainer, settings] : [camera, phone, pause, trainer, settings]
-        if context == .menu { return [pause, trainer, settings, up, down, left, right, accept, back, tabLeft, tabRight] }
-        if phoneDock { return [camera, phone, pause, trainer, settings, up, down, left, right, accept, back] }
+        var list = baseVisible()
+        let playing = !phoneDock && !promptActive && context != .menu
+        if characterSwitchEnabled, playing, [.onFoot, .car, .bike, .boat].contains(context) { list.append(switcher) }
+        // In the layout editor every situational button shows, so it can be placed.
+        if editing && !context.flying {
+            list += context == .onFoot ? [special, interact, detonate, zoomIn, zoomOut, weaponPrev, weaponNext] : [special, interact, detonate, towHook, towArmUp, towArmDown, roof]
+            return list
+        }
+        // Situational buttons, shown only while they do something (engine state, PGReadControlHints).
+        if playing && !context.flying {
+            if hints.specialShown && !aimActive { list.append(special) }
+            if hints.canDetonate { list.append(detonate) }
+            // "Press D-pad right to ..." prompts come in vehicles too (Los Santos Customs, garages).
+            if hints.helpContext && !aimActive { list.append(interact) }
+            if context == .onFoot && aimActive { list += [zoomIn, zoomOut] }
+            if context == .onFoot && has(isWeaponWheel) { list += [weaponPrev, weaponNext] }
+            // The hook and the roof are D-pad right like the headlights, so they get their own buttons.
+            if context == .car && ControlStyle.towTrucks.contains(hints.vehicleModel) { list += [towHook, towArmUp, towArmDown] }
+            if context == .car && ControlStyle.convertibles.contains(hints.vehicleModel) { list.append(roof) }
+        }
+        return list
+    }
+
+    /// Engine state for the situational buttons; called every frame.
+    func updateHints(_ next: PGControlHints) {
+        let changed = next.specialShown != hints.specialShown || next.canDetonate != hints.canDetonate || next.helpContext != hints.helpContext
+            || next.vehicleModel != hints.vehicleModel || next.passenger != hints.passenger || next.taxiMenu != hints.taxiMenu
+        if changed || next.specialReady != hints.specialReady || next.specialActive != hints.specialActive || next.radioWheelOpen != hints.radioWheelOpen {
+            hintsChanged?("Control hints: special \(next.specialShown ? (next.specialActive ? "active" : next.specialReady ? "ready" : "charging") : "none") \(Int(next.specialFill * 100))%, detonate \(next.canDetonate), help \(next.helpShown ? (next.helpContext ? "asks for interact" : "shown") : "none"), radio wheel \(next.radioWheelOpen ? "open" : "closed"), vehicle model 0x\(String(next.vehicleModel, radix: 16))")
+        }
+        hints = next
+        special.active = next.specialActive
+        special.setProgress(next.specialActive ? 0 : CGFloat(next.specialFill))
+        if changed { updateVisibility() }
+    }
+    /// A taxi ride with the destination menu (the taxiservice script runs, the player is a passenger).
+    private var taxiRide: Bool { hints.passenger && hints.taxiMenu && hints.vehicleModel == ControlStyle.taxi }
+    private func baseVisible() -> [ControlButton] {
+        let utility: [ControlButton] = context.driving ? [radio, lights, camera, phone, pause, settings] : [camera, phone, pause, settings]
+        let steering: [ControlButton] = GameSettings.shared.steeringButtons ? [steerLeft, steerRight] : []
+        if context == .menu { return [pause, settings, up, down, left, right, accept, back, tabLeft, tabRight] }
+        if phoneDock { return [camera, phone, pause, settings, up, down, left, right, accept, back, phoneOption] }
+        // A prompt (Mission failed, warning screens) waits for Accept/Back; play controls do nothing then.
+        // Shop menus that lock player control also need the D-pad to move through the items.
+        if promptActive && !editing { return [camera, pause, settings, up, down, left, right, accept, back] }
+        // A taxi ride: the destination menu takes D-pad left/right to change and A to choose.
+        if taxiRide && !editing {
+            return [camera, phone, pause, settings, radio, left, right, accept, taxiHurry, taxiStop, enter, lookBack]
+        }
         switch context {
         case .onFoot:
             return aimActive ? utility + [fire, aim, enter, weapons, reload, cover, leftFire]
                              : utility + [fire, aim, jump, enter, weapons, reload, cover, crouch]
         case .car, .boat:
-            return utility + [gas, brake, handbrake, enter, driveBy, horn, lookBack, vehicleWeapon]
+            return utility + [gas, brake, handbrake, enter, driveBy, horn, lookBack, vehicleWeapon] + steering
         case .bike:
-            return utility + [gas, brake, handbrake, enter, driveBy, horn, lookBack]
+            return utility + [gas, brake, handbrake, enter, driveBy, horn, lookBack] + steering
         case .bicycle:
-            return [camera, phone, pause, trainer, settings, radio, gas, brake, handbrake, enter, lookBack]
+            return [camera, phone, pause, settings, radio, gas, brake, handbrake, enter, lookBack] + steering
         case .sub:
-            return utility + [gas, brake, enter, dive, surface, lookBack]
+            return utility + [gas, brake, enter, dive, surface, lookBack] + steering
+        // Aircraft: next weapon is a D-pad left tap; the same input held is the radio wheel.
         case .heli:
-            return [radio, camera, phone, pause, trainer, settings, airFire, vehicleWeapon, enter]
+            return utility + [airFire, vehicleWeapon, enter, throttleUp, throttleDown, yawLeft, yawRight]
         case .plane:
-            return [radio, camera, phone, pause, trainer, settings, airFire, vehicleWeapon, gear, enter]
+            return utility + [airFire, vehicleWeapon, gear, enter, throttleUp, throttleDown, yawLeft, yawRight]
         case .menu:
             return []
         }
     }
 
+    /// Game state from the engine (PGGameStatus bits: 1 control off, 2 phone out, 4 cutscene,
+    /// 8 warning screen, 16 no player).
+    func updateGameState(_ status: UInt32, now: CFTimeInterval = CACurrentMediaTime()) {
+        let phoneOut = status & 2 != 0
+        if phoneOut != gamePhoneOut {
+            gamePhoneOut = phoneOut
+            if phoneOut { phoneDock = true; phoneRequestedAt = nil; lastDockInput = now }
+            else if phoneDock { phoneDock = false }
+            if context != .menu { reset(publish: false) }
+            updateVisibility()
+        }
+        // Accept/Back prompt: player control off outside cutscenes (Mission failed and similar
+        // screens), or a warning screen. Held for a moment so brief control locks don't flicker.
+        let wanted = status & 16 == 0 && ((status & 1 != 0 && status & 4 == 0) || status & 8 != 0)
+        if wanted { if promptSince == nil { promptSince = now } } else { promptSince = nil }
+        let show = wanted && now - (promptSince ?? now) > 0.6
+        if show != promptActive {
+            promptActive = show
+            reset(publish: false)
+            updateVisibility()
+        }
+    }
+    var showingPrompt: Bool { promptActive }
+
+    /// The saved-layout group for the current controls: on foot, or any vehicle.
+    var layoutGroup: String { context == .onFoot ? "foot" : "vehicle" }
+    private func hiddenByPlayer(_ button: ControlButton) -> Bool {
+        context != .menu && !phoneDock && (ControlsLayout.entry(group: layoutGroup, name: button.name)?.hidden ?? false)
+    }
+
     func updateVisibility() {
-        visible = computeVisible()
+        visible = computeVisible().filter { editing || !hiddenByPlayer($0) }
+        if editing || !hiddenByPlayer(trainer) { visible.append(trainer) }
+        if sandboxSaveVisible && (editing || !hiddenByPlayer(save)) { visible.append(save) }
         let shown = Set(visible.map(ObjectIdentifier.init))
         let opacity = CGFloat(GameSettings.shared.controlOpacity)
         for button in allButtons {
             let isShown = shown.contains(ObjectIdentifier(button))
-            let target: CGFloat = isShown ? (button === fire || button === gas ? min(1, opacity + 0.1) : opacity) : 0
+            var target: CGFloat = isShown ? (button === fire || button === gas ? min(1, opacity + 0.1) : opacity) : 0
+            if editing, isShown, hiddenByPlayer(button) { target = 0.3 }
             if abs(button.alpha - target) > 0.01 {
                 UIView.animate(withDuration: UIAccessibility.isReduceMotionEnabled ? 0 : 0.15) { button.alpha = target }
             }
             button.isAccessibilityElement = isShown
         }
         weapons.setIcon("weapons")
-        enter.accessibilityLabel = context == .onFoot ? "Enter vehicle" : context.flying ? "Hold to exit aircraft" : "Exit vehicle"
+        enter.accessibilityLabel = context == .onFoot ? AppLanguage.choose("Enter vehicle") : context.flying ? AppLanguage.choose("Hold to exit aircraft") : AppLanguage.choose("Exit vehicle")
         gas.setIcon(context == .bicycle ? "pedal" : "gas")
         setNeedsLayout()
     }
@@ -371,14 +649,12 @@ final class TouchControlsView: UIView {
             button.center = point(fx, fy)
         }
         moveStick.frame = bounds
-        rightStick.frame = bounds
         lookStick.frame = bounds
         lookStick.baseDiameter = 120 * scale; lookStick.travel = 48 * scale
         moveStick.baseDiameter = 120 * scale; moveStick.travel = 48 * scale
-        rightStick.baseDiameter = 128 * scale; rightStick.travel = 52 * scale
 
         // Utility bar, top centre: rare actions in the hard-to-reach zone.
-        let order = [radio, lights, camera, phone, pause, trainer, settings]
+        let order = [radio, lights, camera, phone, pause, trainer, save, settings]
         let bar = order.filter { visible.contains($0) }
         for (i, button) in bar.enumerated() {
             let offset = (CGFloat(i) - CGFloat(bar.count - 1) / 2) * 54 * scale / safe.width
@@ -395,21 +671,43 @@ final class TouchControlsView: UIView {
         place(cover, 0.60, 0.82, 52)
         place(crouch, 0.58, 0.60, 44)
         place(leftFire, 0.10, 0.36, 58)
+        place(switcher, 0.955, 0.295, 46)
+        place(special, 0.86, 0.24, 48)
+        place(interact, 0.60, 0.38, 52)
+        place(detonate, 0.52, 0.68, 48)
+        place(zoomIn, 0.66, 0.24, 44)
+        place(zoomOut, 0.74, 0.24, 44)
+        // In the middle of the weapon wheel, which the game draws at the centre of the screen.
+        let centreX = (bounds.midX - safe.minX) / safe.width, centreY = (bounds.midY - safe.minY) / safe.height
+        let gap = 34 * scale / safe.width
+        place(weaponPrev, centreX - gap, centreY, 50)
+        place(weaponNext, centreX + gap, centreY, 50)
 
         // Ground vehicles: analog steering on the left, pedals on the right.
         pedal(gas, 0.905, 0.72, 74, 108)
         pedal(brake, 0.775, 0.80, 74, 78)
         place(handbrake, 0.79, 0.52, 56)
+        place(steerLeft, 0.08, 0.76, 80)
+        place(steerRight, 0.215, 0.76, 80)
         place(driveBy, 0.655, 0.50, 58)
         place(horn, 0.06, 0.36, 46)
         place(lookBack, 0.155, 0.36, 44)
         place(vehicleWeapon, 0.955, 0.17, 48)
+        place(towHook, 0.655, 0.27, 50)
+        place(roof, 0.575, 0.27, 50)
+        place(towArmUp, 0.575, 0.27, 46)
+        place(towArmDown, 0.495, 0.27, 46)
         pedal(surface, 0.655, 0.64, 62, 66)
         pedal(dive, 0.655, 0.84, 62, 66)
 
-        // Aircraft: the right thumb flies the second stick; fire sits above it.
+        // Aircraft: the left stick flies; the right thumb works throttle pedals and the rudder, and
+        // anywhere else on the right looks around.
         place(airFire, 0.80, 0.30, 62)
         place(gear, 0.655, 0.24, 46)
+        pedal(throttleUp, 0.905, 0.56, 74, 96)
+        pedal(throttleDown, 0.905, 0.85, 74, 64)
+        place(yawLeft, 0.655, 0.86, 54)
+        place(yawRight, 0.775, 0.86, 54)
 
         // Menus and the phone: a D-pad on the left, accept/back on the right.
         let stepX = 58 * scale / safe.width, stepY = 58 * scale / safe.height
@@ -419,8 +717,61 @@ final class TouchControlsView: UIView {
         place(right, 0.12 + stepX, 0.70, 52)
         place(accept, 0.905, 0.70, 68)
         place(back, 0.765, 0.84, 56)
+        place(phoneOption, 0.765, 0.56, 56)
+        place(taxiHurry, 0.765, 0.52, 58)
+        place(taxiStop, 0.765, 0.84, 58)
         place(tabLeft, 0.05, 0.12, 46)
         place(tabRight, 0.95, 0.12, 46)
+
+        // The player's own layout (Edit controls layout): moved and resized controls. Hit areas
+        // follow, since touches test each control's frame.
+        if context != .menu && !phoneDock {
+            for button in visible {
+                guard let entry = ControlsLayout.entry(group: layoutGroup, name: button.name) else { continue }
+                let size = button.bounds.size
+                button.bounds.size = CGSize(width: max(36, size.width * entry.scale), height: max(36, size.height * entry.scale))
+                button.center = point(entry.x, entry.y)
+            }
+        }
+        let legacyKey = "touchLayout.\(context)"
+        if let legacy = UserDefaults.standard.dictionary(forKey: legacyKey) {
+            for button in visible where ControlsLayout.entry(group: layoutGroup, name: button.name) == nil {
+                guard let values = legacy[button.name] as? [Double], values.count == 2,
+                      values.allSatisfy({ $0.isFinite && (0...1).contains($0) }) else { continue }
+                button.center = point(CGFloat(values[0]), CGFloat(values[1]))
+            }
+        }
+        updateHighlight()
+    }
+
+    // MARK: Layout editor support
+
+    private let highlightLayer: CAShapeLayer = {
+        let layer = CAShapeLayer()
+        layer.fillColor = nil
+        layer.strokeColor = UIColor.systemYellow.cgColor
+        layer.lineWidth = 3
+        layer.lineDashPattern = [6, 4]
+        return layer
+    }()
+    private func updateHighlight() {
+        if highlightLayer.superlayer == nil { layer.addSublayer(highlightLayer) }
+        guard let button = highlighted, visible.contains(where: { $0 === button }) else { highlightLayer.path = nil; return }
+        let frame = button.frame.insetBy(dx: -6, dy: -6)
+        highlightLayer.path = UIBezierPath(roundedRect: frame, cornerRadius: button.isPedal ? 22 : frame.width / 2).cgPath
+    }
+    /// The visible control under a point (layout editor).
+    func editableButton(at point: CGPoint) -> ControlButton? { button(at: point) }
+    func button(named name: String) -> ControlButton? { allButtons.first { $0.name == name } }
+    /// A point as a fraction of the safe area (what the saved layout stores).
+    func normalized(_ point: CGPoint) -> CGPoint {
+        let safe = bounds.inset(by: safeAreaInsets)
+        guard safe.width > 0, safe.height > 0 else { return CGPoint(x: 0.5, y: 0.5) }
+        return CGPoint(x: (point.x - safe.minX) / safe.width, y: (point.y - safe.minY) / safe.height)
+    }
+    func clampedToSafeArea(_ point: CGPoint) -> CGPoint {
+        let safe = bounds.inset(by: safeAreaInsets).insetBy(dx: 24, dy: 24)
+        return CGPoint(x: min(max(point.x, safe.minX), safe.maxX), y: min(max(point.y, safe.minY), safe.maxY))
     }
 
     override func hitTest(_ point: CGPoint, with event: UIEvent?) -> UIView? {
@@ -437,10 +788,11 @@ final class TouchControlsView: UIView {
 
     private func has(_ check: (Role) -> Bool) -> Bool { roles.values.contains(where: check) }
     private func isStick(_ role: Role) -> Bool { if case .moveStick = role { return true }; if case .steer = role { return true }; return false }
-    private func isFlightRight(_ role: Role) -> Bool { if case .flightRight = role { return true }; return false }
+    private func isWeaponWheel(_ role: Role) -> Bool { if case .weaponWheel = role { return true }; return false }
     private func isLook(_ role: Role) -> Bool { if case .look = role { return true }; return false }
 
     override func touchesBegan(_ touches: Set<UITouch>, with event: UIEvent?) {
+        if editing { return }
         let safe = bounds.inset(by: safeAreaInsets)
         for touch in touches {
             let point = touch.location(in: self)
@@ -448,17 +800,26 @@ final class TouchControlsView: UIView {
             let leftZone = point.x < safe.minX + safe.width * 0.45
             if let button = button(at: point) {
                 press(button, touch: touch, at: point)
+            } else if context == .menu, leftZone {
+                // Pause menu: the left side is the controller's left stick, which moves the map
+                // cursor so any spot can get a waypoint.
+                if !has(isStick) { roles[id] = .moveStick; moveStick.begin(at: point) }
             } else if context == .menu || phoneDock {
                 if !has(isLook) { roles[id] = .look; lookStick.begin(at: point) }
-            } else if context.flying {
-                if leftZone, !has(isStick) { roles[id] = .moveStick; moveStick.begin(at: point) }
-                else if !leftZone, !has(isFlightRight) { roles[id] = .flightRight; rightStick.begin(at: point) }
-            } else if leftZone, point.y > safe.minY + safe.height * 0.2, !has(isStick) {
-                roles[id] = context.driving ? .steer : .moveStick
-                moveStick.begin(at: point)
+            } else if context.flying, leftZone {
+                if !has(isStick) { roles[id] = .moveStick; moveStick.begin(at: point) }
+            } else if leftZone, context.driving, GameSettings.shared.steeringButtons {
+                // Steering buttons replace the steering stick; the rest of the left side does nothing.
+            } else if leftZone {
+                // In swipe modes the entire left side is reserved for movement;
+                // even a second left finger must not become a camera gesture.
+                if point.y > safe.minY + safe.height * 0.2, !has(isStick) {
+                    roles[id] = context.driving ? .steer : .moveStick
+                    moveStick.begin(at: point)
+                }
             } else if !has(isLook) {
                 roles[id] = .look
-                // No floating joystick: free dragging now drives the camera.
+                if !swipeCameraEnabled { lookStick.begin(at: point) }
             }
         }
         publish()
@@ -470,9 +831,21 @@ final class TouchControlsView: UIView {
         haptics.impactOccurred(intensity: 0.6)
         button.setPressed(true)
         roles[id] = .button(button)
+        defer { if case .fireLook = roles[id] { dragOrigins[id] = (point, point) } }
         switch button {
         case weapons:
+            clearCameraTravel()
             roles[id] = .weaponWheel(start: point, current: point)
+            updateVisibility()
+        case radio where context.driving:
+            clearCameraTravel()
+            roles[id] = .radioWheel(start: point, current: point, since: now)
+        case special:
+            // L3 + R3 together, fresh presses within the game's 100 ms window; again to stop.
+            pulse([.l3, .r3], for: 0.13)
+        case switcher:
+            clearCameraTravel()
+            roles[id] = .characterWheel(start: point, current: point)
         case fire, driveBy:
             roles[id] = .fireLook(button)
             fireStartedAt = now
@@ -490,13 +863,28 @@ final class TouchControlsView: UIView {
         case enter where context.flying:
             exitHoldStart = now
         case phone:
-            phoneDock.toggle()
+            if gamePhoneOut {
+                // The phone is out: this button now puts it away (Back), the dock follows the game.
+                phoneRequestedAt = nil
+            } else {
+                phoneDock.toggle()
+                phoneRequestedAt = phoneDock ? now : nil
+            }
             lastDockInput = now
             updateVisibility()
         case trainer:
             DispatchQueue.main.async { self.openTrainer?() }
+        case save:
+            DispatchQueue.main.async { self.openSandboxSave?() }
         case settings:
             DispatchQueue.main.async { self.openSettings?() }
+        case vehicleWeapon where context.flying:
+            // INPUT_VEH_FLY_SELECT_NEXT_WEAPON shares D-pad left with the radio (a tap changes the
+            // station), so the weapon is switched directly instead.
+            PGNextAircraftWeapon()
+        case roof:
+            // INPUT_VEH_ROOF is D-pad right held (a short press is the headlights).
+            pulse(.right, for: 0.8)
         case up, down, left, right, accept, back:
             lastDockInput = now
         default:
@@ -508,30 +896,29 @@ final class TouchControlsView: UIView {
         for touch in touches {
             let id = ObjectIdentifier(touch)
             guard let role = roles[id] else { continue }
-            let point = touch.location(in: self), previous = touch.previousLocation(in: self)
+            let point = touch.location(in: self)
+            let previous = touch.previousLocation(in: self)
             switch role {
             case .moveStick:
                 moveStick.move(to: point)
             case .steer:
-                // Cars steer horizontally only; bikes also lean forward/back.
-                moveStick.move(to: point, horizontalOnly: !(context == .bike || context == .bicycle))
-            case .flightRight:
-                rightStick.move(to: point)
-                if context == .plane {
-                    // The plane's throttle lever stays where it is left.
-                    throttle = max(-1, min(1, throttle - (point.y - previous.y) / (rightStick.travel * 2)))
-                }
+                // Up/down tilts a car in the air and leans a bike.
+                moveStick.move(to: point)
+            case .radioWheel(let start, _, let since):
+                roles[id] = .radioWheel(start: start, current: point, since: since)
             case .look:
-                if context == .menu || phoneDock {
-                    lookStick.move(to: point)
+                if swipeCameraEnabled {
+                    trackCameraSwipe(from: previous, to: point)
                 } else {
-                    swipeLook.add(dx: Double(point.x - previous.x), dy: Double(point.y - previous.y))
+                    lookStick.move(to: point)
                 }
-            case .fireLook:
-                // Keep Fire/Aim held and steer camera with the same swipe.
-                swipeLook.add(dx: Double(point.x - previous.x), dy: Double(point.y - previous.y))
+            case .fireLook(let button):
+                if button !== leftFire { trackCameraSwipe(from: previous, to: point) }
+                if let origin = dragOrigins[id] { dragOrigins[id] = (origin.start, point) }
             case .weaponWheel(let start, _):
                 roles[id] = .weaponWheel(start: start, current: point)
+            case .characterWheel(let start, _):
+                roles[id] = .characterWheel(start: start, current: point)
             case .button(let button):
                 // Pedals: a finger may roll from one to another without lifting.
                 if button.slideTarget, !button.contains(point: point, slop: 10),
@@ -552,11 +939,16 @@ final class TouchControlsView: UIView {
     private func finish(_ touches: Set<UITouch>) {
         for touch in touches {
             guard let role = roles.removeValue(forKey: ObjectIdentifier(touch)) else { continue }
+            dragOrigins[ObjectIdentifier(touch)] = nil
             switch role {
             case .moveStick, .steer: moveStick.end(); sprintSince = nil
-            case .flightRight: rightStick.end()
             case .look: lookStick.end()
-            case .weaponWheel: weapons.setPressed(false)
+            case .weaponWheel: weapons.setPressed(false); updateVisibility()
+            case .radioWheel(_, _, let since):
+                radio.setPressed(false)
+                // Released quickly without picking: a tap, the next station.
+                if CACurrentMediaTime() - since < 0.25 { pulse(.left, for: 0.1) }
+            case .characterWheel: switcher.setPressed(false)
             case .fireLook(let button):
                 button.setPressed(false)
                 if button === fire || button === driveBy { fireStartedAt = nil }
@@ -571,15 +963,21 @@ final class TouchControlsView: UIView {
 
     private func publish() { inputChanged?() }
 
+    private func pulse(_ buttons: PadButtons, for duration: CFTimeInterval) {
+        pulses.append((buttons, CACurrentMediaTime() + duration))
+    }
+
     func reset(publish: Bool = true, keepStickFinger: Bool = false) {
+        clearCameraTravel()
         for (id, role) in roles {
             switch role {
             case .moveStick, .steer:
                 if keepStickFinger { roles[id] = context.driving ? .moveStick : .steer; continue }
                 moveStick.end()
-            case .flightRight: rightStick.end()
             case .button(let button), .fireLook(let button): button.setPressed(false)
+            case .radioWheel: radio.setPressed(false)
             case .weaponWheel: weapons.setPressed(false)
+            case .characterWheel: switcher.setPressed(false)
             case .look: lookStick.end()
             }
             roles[id] = nil
@@ -588,8 +986,7 @@ final class TouchControlsView: UIView {
         fireStartedAt = nil; exitHoldStart = nil
         enter.setProgress(0)
         sprintSince = nil; moveStick.sprinting = false
-        swipeLook.reset()
-        PGResetCameraLook()
+        dragOrigins.removeAll()
         if publish { self.publish() }
     }
 
@@ -597,31 +994,30 @@ final class TouchControlsView: UIView {
 
     /// Whether the player is aiming; gyro aim runs only then by default.
     var aiming: Bool { aimActive || fire.pressed || leftFire.pressed || driveBy.pressed }
-    /// The thumb is on the right-hand flight stick (gyro stays off).
-    var flyingWithRightStick: Bool { has(isFlightRight) }
+    /// Aircraft are flown with the left stick and buttons now; kept for the gyro check.
+    var flyingWithRightStick: Bool { false }
 
-    /// Held controls use the virtual pad; swipe travel is queued separately.
+    /// The current controller state. `elapsed` turns finger travel into a
+    /// stick deflection, so the camera turns about as far as the finger moves.
     func padState(elapsed: Double) -> PGPadState {
         var state = PGPadState()
         var held = PadButtons()
         let now = CACurrentMediaTime()
+        flushCameraTravel()
 
-        let sensitivity = aiming ? GameSettings.shared.aimSensitivity : GameSettings.shared.lookSensitivity
-        let weaponWheelOpen = roles.values.contains { role in
-            if case .weaponWheel = role { return true }
-            return false
+        // Camera stick: holding the thumb off-centre keeps turning. Drags from
+        // Aim/Fire count the same way, measured from where they pressed.
+        var look = has(isLook) ? lookStick.value : .zero
+        for (_, origin) in dragOrigins {
+            let travel = lookStick.travel
+            var v = CGPoint(x: (origin.current.x - origin.start.x) / travel, y: -(origin.current.y - origin.start.y) / travel)
+            let length = hypot(v.x, v.y)
+            if length > 1 { v.x /= length; v.y /= length }
+            if hypot(v.x, v.y) > hypot(look.x, look.y) { look = v }
         }
-        if context == .menu || phoneDock {
-            // Retain stick-based navigation for the in-game menu and phone.
-            (state.rightX, state.rightY) = Self.cameraStick(lookStick.value, speed: CGFloat(sensitivity))
-            swipeLook.reset()
-            PGResetCameraLook()
-        } else if weaponWheelOpen {
-            swipeLook.reset()
-            PGResetCameraLook()
-        } else {
-            let delta = swipeLook.consume(elapsed: elapsed, sensitivity: sensitivity)
-            PGQueueCameraLook(delta.0, delta.1)
+        if !swipeCameraEnabled {
+            let speed = CGFloat(aimActive ? GameSettings.shared.aimSensitivity : GameSettings.shared.lookSensitivity)
+            (state.rightX, state.rightY) = Self.cameraStick(look, speed: speed)
         }
 
         switch context {
@@ -649,6 +1045,12 @@ final class TouchControlsView: UIView {
             if reload.pressed { held.insert(.b) }
             if cover.pressed { held.insert(.r1) }
             if crouch.pressed { held.insert(.l3) }
+            if interact.pressed { held.insert(.right) }
+            if zoomIn.pressed { held.insert(.up) }
+            if zoomOut.pressed { held.insert(.down) }
+            // With the weapon wheel open, D-pad left/right step through the weapons in a slot.
+            if weaponPrev.pressed { held.insert(.left) }
+            if weaponNext.pressed { held.insert(.right) }
             for role in roles.values {
                 guard case .weaponWheel(let start, let current) = role else { continue }
                 // Hold the wheel button; the same finger points at a slot.
@@ -658,9 +1060,16 @@ final class TouchControlsView: UIView {
                 state.rightY = length > 24 ? Float(-d.y / length) : 0
             }
         case .car, .bike, .bicycle, .boat, .sub:
-            let steer = moveStick.value.x
+            let steer = GameSettings.shared.steeringButtons ? (steerRight.pressed ? 1 : 0) - (steerLeft.pressed ? 1 : 0) : moveStick.value.x
             state.leftX = Float(copysign(pow(abs(steer), 1.3), steer))
-            if context == .bike || context == .bicycle { state.leftY = Float(moveStick.value.y) }
+            let tilt = moveStick.value.y
+            if context == .bike || context == .bicycle {
+                state.leftY = Float(tilt)
+            } else {
+                // Cars, boats and subs: up/down pitches in the air or underwater. A wide dead zone keeps
+                // sloppy steering from tilting.
+                state.leftY = abs(tilt) < 0.35 ? 0 : Float(copysign((abs(tilt) - 0.35) / 0.65, tilt))
+            }
             if context == .bicycle {
                 // Pedal by tapping A at a steady cadence while Gas is held.
                 if gas.pressed {
@@ -680,27 +1089,37 @@ final class TouchControlsView: UIView {
                 if now - (fireStartedAt ?? now) > 0.12 { held.insert(.r1) }
             }
             if enter.pressed { held.insert(.y) }
+            if interact.pressed { held.insert(.right) }
             if horn.pressed { held.insert(.l3) }
             if lookBack.pressed { held.insert(.r3) }
             if vehicleWeapon.pressed { held.insert(.x) }
             if dive.pressed { held.insert(.a) }
             if surface.pressed { held.insert(.x) }
             if lights.pressed { held.insert(.right) }
-            if radio.pressed { held.insert(.left) }
+            // INPUT_VEH_GRAPPLING_HOOK, D-pad right in the game's standard pad layout.
+            if towHook.pressed { held.insert(.right) }
+            // The tow arm moves with the left stick up/down, as on a controller.
+            if towArmUp.pressed { state.leftY = 1 } else if towArmDown.pressed { state.leftY = -1 }
+            if detonate.pressed { held.insert(.left) }
+            for role in roles.values {
+                guard case .radioWheel(_, let current, let since) = role, now - since >= 0.25 else { continue }
+                // Held: the wheel is open around the middle of the screen, and the station picked is the
+                // one the finger points at from there. It goes straight into the wheel's own inputs
+                // (PGSetRadioWheelDirection); camera and steering stay still while choosing.
+                held.insert(.left)
+                let d = CGPoint(x: current.x - bounds.midX, y: current.y - bounds.midY), length = hypot(d.x, d.y)
+                radioDirection = length > 40 ? (Float(d.x / length), Float(-d.y / length)) : (0, 0)
+                state.rightX = 0; state.rightY = 0
+                state.leftX = 0; state.leftY = 0
+            }
         case .heli, .plane:
             state.leftX = Float(moveStick.value.x); state.leftY = Float(moveStick.value.y)
-            let stick = rightStick.value
-            if context == .heli {
-                // Collective: up climbs, down descends, centred = hold height.
-                state.rightTrigger = Float(max(0, stick.y)); state.leftTrigger = Float(max(0, -stick.y))
-            } else {
-                state.rightTrigger = Float(max(0, throttle)); state.leftTrigger = Float(max(0, -throttle))
-            }
-            if stick.x < -0.35 { held.insert(.l1) }
-            if stick.x > 0.35 { held.insert(.r1) }
-            if has(isFlightRight) { state.rightX = 0; state.rightY = 0 }
+            // GTA V's controller flight: RT throttle up / climb, LT down / descend, LB/RB rudder.
+            if throttleUp.pressed { state.rightTrigger = 1 }
+            if throttleDown.pressed { state.leftTrigger = 1 }
+            if yawLeft.pressed { held.insert(.l1) }
+            if yawRight.pressed { held.insert(.r1) }
             if airFire.pressed { held.insert(.a) }
-            if vehicleWeapon.pressed || radio.pressed { held.insert(.left) }
             if gear.pressed { held.insert(.l3) }
             if let start = exitHoldStart {
                 // Leaving an aircraft needs a short hold, so a slip cannot bail out.
@@ -709,22 +1128,60 @@ final class TouchControlsView: UIView {
                 if progress >= 1 { held.insert(.y) }
             }
         case .menu:
-            break
+            state.leftX = Float(moveStick.value.x); state.leftY = Float(moveStick.value.y)
         }
 
+        for role in roles.values {
+            guard case .characterWheel(let start, let current) = role else { continue }
+            // Hold D-pad down (the selector opens); the same finger points at a character.
+            held.insert(.down)
+            let d = CGPoint(x: current.x - start.x, y: current.y - start.y), length = hypot(d.x, d.y)
+            state.rightX = length > 24 ? Float(d.x / length) : 0
+            state.rightY = length > 24 ? Float(-d.y / length) : 0
+        }
         if camera.pressed { held.insert(.select) }
         if pause.pressed { held.insert(.start) }
-        if phone.pressed && phoneDock { held.insert(.up) }
+        if phone.pressed && phoneDock && !gamePhoneOut { held.insert(.up) }
+        if phone.pressed && gamePhoneOut { held.insert(.b) }
         if up.pressed { held.insert(.up) }
         if down.pressed { held.insert(.down) }
-        if left.pressed { held.insert(.left) }
-        if right.pressed { held.insert(.right) }
+        if taxiRide {
+            // The taxi's destination menu reads the left stick (D-pad left would change the station).
+            if left.pressed { state.leftX = -1 }
+            if right.pressed { state.leftX = 1 }
+        } else {
+            if left.pressed { held.insert(.left) }
+            if right.pressed { held.insert(.right) }
+        }
         if accept.pressed { held.insert(.a) }
         if back.pressed { held.insert(.b) }
+        if phoneOption.pressed { held.insert(.x) }
+        if taxiHurry.pressed { held.insert(.x) }
+        if taxiStop.pressed { held.insert(.b) }
         if tabLeft.pressed { held.insert(.l1) }
         if tabRight.pressed { held.insert(.r1) }
-        if phoneDock && now - lastDockInput > 20 { phoneDock = false; updateVisibility() }
+        // Without a phone on screen the dock closes itself: after a moment when the phone did not
+        // come up, or after 20 s without input as before.
+        if phoneDock && !gamePhoneOut {
+            if let asked = phoneRequestedAt, now - asked > 2.5 { phoneDock = false; phoneRequestedAt = nil; updateVisibility() }
+            else if phoneRequestedAt == nil && now - lastDockInput > 20 { phoneDock = false; updateVisibility() }
+        }
 
+        if context == .onFoot && detonate.pressed { held.insert(.left) }
+        // The radio wheel's own inputs (see PGSetRadioWheelDirection).
+        PGSetRadioWheelDirection(radioDirection?.0 ?? 0, radioDirection?.1 ?? 0, radioDirection != nil)
+        radioDirection = nil
+        pulses.removeAll { $0.until <= now }
+        for pulse in pulses { held.formUnion(pulse.buttons) }
+        // Every press reaches the game: a bit stays down at least `minimumPress` after it went down,
+        // since the engine samples the pad once per game frame.
+        let raw = held
+        for bit in 0..<16 {
+            let value = UInt32(1) << UInt32(bit)
+            if raw.rawValue & value != 0 && lastHeld.rawValue & value == 0 { pressedAt[value] = now }
+            if raw.rawValue & value == 0, let at = pressedAt[value], now - at < Self.minimumPress { held.insert(PadButtons(rawValue: value)) }
+        }
+        lastHeld = raw
         state.padButtons = held
         return state
     }

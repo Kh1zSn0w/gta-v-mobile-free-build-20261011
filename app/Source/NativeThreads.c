@@ -54,6 +54,8 @@ void w2c_env_0x5Femscripten_notify_mailbox_postmessage(struct w2c_env *host,u64 
   // Native blocking workers process mailbox messages at their engine futex points.
   // A direct proxy below handles synchronous host operations without a JS event loop.
 }
+// When the heap last refused to grow (CLOCK_MONOTONIC seconds as bits), for the streaming guard.
+_Atomic uint64_t pgHeapRefusedAt;
 u32 w2c_env_emscripten_resize_heap(struct w2c_env *host,u64 desired){
   wasm_rt_shared_memory_t *memory=w2c_env_memory(host);u32 success=0;
   static uint64_t refused;static double lastRefusedLog;
@@ -68,6 +70,7 @@ u32 w2c_env_emscripten_resize_heap(struct w2c_env *host,u64 desired){
     char line[160];snprintf(line,sizeof line,"Native heap grew from %llu to %llu MB within the shared reservation.",previous/1048576,memory->size/1048576);pg_log(line);
   }else{
     uint64_t count=++refused;
+    {struct timespec now;clock_gettime(CLOCK_MONOTONIC,&now);double at=now.tv_sec+now.tv_nsec/1e9;uint64_t bits;memcpy(&bits,&at,8);atomic_store(&pgHeapRefusedAt,bits);}
     if(count==1||(count&4095)==0){struct timespec now;clock_gettime(CLOCK_MONOTONIC,&now);double seconds=now.tv_sec+now.tv_nsec/1e9;
       if(count==1||seconds-lastRefusedLog>=5){char line[180];snprintf(line,sizeof line,"Native heap capacity exceeded: requested %llu MB, capacity %llu MB (%llu attempts)",desired/1048576,capacity/1048576,count);pg_log(line);lastRefusedLog=seconds;}
     }

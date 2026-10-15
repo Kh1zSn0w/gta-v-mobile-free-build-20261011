@@ -20,6 +20,7 @@ final class PreviewTouchController: UIViewController {
     override var prefersStatusBarHidden: Bool { true }
     override func viewDidLoad() {
         super.viewDidLoad()
+        GameSettings.shared.cameraTouchMode = .swipeMouse
         view.backgroundColor = .darkGray
         controls.translatesAutoresizingMaskIntoConstraints = false
         view.addSubview(controls)
@@ -53,3 +54,15 @@ final class PreviewTouchController: UIViewController {
         }
     }
 }
+
+struct PGControlHints {
+    var specialShown = false, specialReady = false, specialActive = false
+    var specialFill: Float = 0
+    var canDetonate = false, helpShown = false, helpContext = false, radioWheelOpen = false
+    var vehicleModel: UInt32 = 0
+    var passenger = false, taxiMenu = false
+}
+func PGClearCameraSwipe() { cameraTravel = .zero }
+func PGQueueCameraSwipe(_ dx: Float, _ dy: Float) { PGQueueCameraLook(dx, dy) }
+func PGMouseInput(_ dx: Int32, _ dy: Int32, _ buttons: Int32) { PGQueueCameraLook(Float(dx), Float(dy)) }
+func PGNextAircraftWeapon() {}

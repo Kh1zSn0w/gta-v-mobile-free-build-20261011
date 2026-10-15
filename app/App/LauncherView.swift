@@ -260,6 +260,16 @@ final class LauncherHomeView: UIView {
         super.layoutSubviews()
     }
 
+    enum FileState { case busy, ready, attention, problem }
+    func setFiles(_ state: FileState, title: String, detail: String) {
+        setDetail(title + (detail.isEmpty ? "" : " · " + detail), for: .files)
+        downloadLabel.text = title
+        downloadLabel.isHidden = false
+    }
+    func refreshLanguage() {
+        playButton.configuration?.title = AppLanguage.choose("Play")
+    }
+
     func setDetail(_ text: String, for section: LauncherSection) {
         rows[section]?.detail.text = text
         rows[section]?.accessibilityValue = text

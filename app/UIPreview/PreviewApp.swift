@@ -5,6 +5,7 @@ import UIKit
 final class PreviewApp: UIResponder, UIApplicationDelegate {
     var window: UIWindow?
     func application(_ application: UIApplication, didFinishLaunchingWithOptions options: [UIApplication.LaunchOptionsKey: Any]?) -> Bool {
+        PersonalSettingsMigration.run()
         let controller: UIViewController = ProcessInfo.processInfo.arguments.contains("--test-touch-controls")
             ? PreviewTouchController() : PreviewController()
         let window = UIWindow(frame: UIScreen.main.bounds)
@@ -29,7 +30,7 @@ final class PreviewController: UIViewController {
             home.topAnchor.constraint(equalTo: view.topAnchor),
             home.bottomAnchor.constraint(equalTo: view.bottomAnchor)
         ])
-        home.setDetail("Balanced · 30 FPS · 100% resolution", for: .graphics)
+        home.setDetail("Balanced · 60 FPS · 100% resolution", for: .graphics)
         home.setDetail("Swipe camera, sensitivity and aim", for: .controls)
         home.setDetail("Gyro aiming and tilt steering", for: .motion)
         home.setDetail("Downloaded locally", for: .files)
@@ -88,6 +89,11 @@ final class PreviewController: UIViewController {
     private func showSettings(_ section: LauncherSection) {
         guard section != .connection else { return }
         let settings = SettingsViewController(engineRunning: false, initialSection: section)
+        settings.editLayout = { [weak settings] in
+            let editor = ControlsLayoutEditorController()
+            editor.modalPresentationStyle = .fullScreen
+            settings?.present(editor, animated: true)
+        }
         let navigation = UINavigationController(rootViewController: settings)
         LauncherStyle.configure(navigation)
         navigation.sheetPresentationController?.detents = [.large()]

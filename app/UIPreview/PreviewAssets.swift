@@ -82,3 +82,23 @@ func PGTrainerClothingState(_ slot: UInt32) -> UInt64 {
     return UInt64(wardrobePreviewStyles[Int(slot)] + 1) | (3 << 16) | (UInt64(wardrobePreviewColours[Int(slot)]) << 32) | (2 << 48)
 }
 func PGSetVehicleCameraHold(_ enabled: Bool) {}
+
+private var sandboxPreviewSaveStatus: UInt32 = 0
+func PGSandboxSaveAvailable() -> Bool {
+    PGTrainerReady() && !ProcessInfo.processInfo.arguments.contains("--trainer-story")
+}
+func PGSandboxSaveRequest() -> Bool {
+    guard PGSandboxSaveAvailable(), sandboxPreviewSaveStatus != 1 else { return false }
+    sandboxPreviewSaveStatus = 1
+    DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) { sandboxPreviewSaveStatus = 2 }
+    return true
+}
+func PGSandboxSaveStatus() -> UInt32 { sandboxPreviewSaveStatus }
+
+func PGSetMemoryCap(_ amount: Int32) {}
+func PGLastInputDevice() -> Int32 { 0 }
+func PGTargetingMode() -> Int32 { 1 }
+enum GameFolder {
+    static let isChosen = false
+    static let testMapAvailable = false
+}

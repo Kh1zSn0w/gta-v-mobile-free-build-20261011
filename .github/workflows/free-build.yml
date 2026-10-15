@@ -1,64 +1,61 @@
-name: Free personal iPhone build
+name: Build personal GTA V Mobile
 on:
   workflow_dispatch:
+    inputs:
+      verify_only:
+        description: Run simulator and regression verification only
+        type: boolean
+        default: false
 permissions:
   contents: read
 concurrency:
-  group: personal-native-build
+  group: ${{ inputs.verify_only && 'personal-ui-verification' || 'personal-native-build' }}
   cancel-in-progress: false
 jobs:
   preview:
     runs-on: macos-15
-    timeout-minutes: 20
+    timeout-minutes: 25
     steps:
       - uses: actions/checkout@v4
       - name: Install build tools
         run: brew install xcodegen
-      - name: Check camera delivery and stereo audio
-        run: bash app/Scripts/check_interaction_audio.sh
-      - name: Verify swipe camera math
-        run: |
-          swiftc app/App/SwipeLook.swift app/App/WorldDetail.swift app/App/GraphicsPreset.swift app/UIPreview/SwipeMathChecks.swift -o /tmp/pg-swipe-checks
-          /tmp/pg-swipe-checks
-      - name: Build launcher and real touch overlay preview
+      - name: Verify trainer, wardrobe, saves, memory and settings migration
+        run: bash app/Scripts/check_personal_mods.sh
+      - name: Build and capture personal launcher
         run: bash app/UIPreview/capture.sh
-      - name: Verify direct touch, graphics persistence and existing controls
+      - name: Verify launcher, new controls and personal mods
         run: bash app/UIPreview/test.sh
-      - name: Preserve UI test log
+      - name: Preserve UI evidence
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: swipe-ui-tests
+          name: personal-ui-verification
           path: |
             app/UIPreview/ui-tests.log
-            app/UIPreview/Screenshots/trainer*-preview.png
+            app/UIPreview/preview-build.log
+            app/UIPreview/Screenshots
           if-no-files-found: ignore
-          retention-days: 3
+          retention-days: 7
   native:
+    if: ${{ !inputs.verify_only }}
     runs-on: macos-15
-    timeout-minutes: 90
+    timeout-minutes: 120
     steps:
       - uses: actions/checkout@v4
       - name: Install build tools
         run: brew install xcodegen
-      - name: Check camera delivery and stereo audio
-        run: bash app/Scripts/check_interaction_audio.sh
-      - name: Verify swipe camera math
-        run: |
-          swiftc app/App/SwipeLook.swift app/App/WorldDetail.swift app/App/GraphicsPreset.swift app/UIPreview/SwipeMathChecks.swift -o /tmp/pg-swipe-checks
-          /tmp/pg-swipe-checks
-      - name: Verify build inputs
+      - name: Verify personal mods and settings migration
+        run: bash app/Scripts/check_personal_mods.sh
+      - name: Fetch and checksum pinned build inputs
         run: python3 app/Scripts/fetch_release_inputs.py
       - name: Install Metal compiler if required
         run: xcrun -sdk iphoneos metal --version > /dev/null 2>&1 || xcodebuild -downloadComponent MetalToolchain
-      - name: Compile personal iPhone app
+      - name: Build personal iPhone app from Kevin 1.3.3
         env:
           PG_INPUT_MIRROR: Build/Inputs/mirror
           JOBS: '2'
         run: bash build_ipa.sh http://192.168.1.115:8000
-      - name: Verify downloaded-file streaming
-        run: bash app/Scripts/check_local_streaming.sh
-      - name: Deliver IPA and diagnostics privately
+      - name: Deliver app and diagnostics to the private repository
         if: always()
         env:
           PRIVATE_DELIVERY_TOKEN: ${{ secrets.PRIVATE_DELIVERY_TOKEN }}

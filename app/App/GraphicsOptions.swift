@@ -3,6 +3,44 @@ import Metal
 import UIKit
 import os
 
+/// Graphics presets. The engine reads quality settings once at boot; only the
+/// resolution can change while it runs.
+enum GraphicsPreset: Int, CaseIterable {
+    case battery, performance, balanced, quality, ultra, max
+
+    var title: String { [AppLanguage.choose("Battery"), AppLanguage.choose("Performance"), AppLanguage.choose("Balanced"), AppLanguage.choose("Quality"), AppLanguage.choose("Ultra"), AppLanguage.choose("Max")][rawValue] }
+    /// Render height in pixels; width follows the screen's shape.
+    var height: Int { [432, 540, 720, 900, 1080, 1290][rawValue] }
+    var detail: String {
+        [AppLanguage.choose("Lowest load, longest play time"), AppLanguage.choose("Today's tested setup for 6 GB iPhones"), AppLanguage.choose("Sharper image and shadows"),
+         AppLanguage.choose("Higher detail textures, effects and draw distance"), AppLanguage.choose("1080p with high shaders, shadows and reflections"),
+         AppLanguage.choose("Near-native resolution, high textures and full draw distance (newest Pro phones)")][rawValue]
+    }
+
+    /// Engine command-line options. Shader quality never goes below 1 (the
+    /// low shader set is mostly missing), and tessellation, MSAA and depth of
+    /// field stay off because their shaders do not run on Metal here.
+    var engineOptions: [String] {
+        switch self {
+        case .battery, .performance:
+            return ["-shaderQuality=1", "-textureQuality=0", "-shadowQuality=-1", "-reflectionQuality=0", "-particleQuality=0",
+                    "-grassQuality=0", "-cityDensity=0", "-lodScale=0", "-pedLodBias=0", "-vehicleLodBias=0", "-pedVariety=0", "-vehicleVariety=0"]
+        case .balanced:
+            return ["-shaderQuality=1", "-textureQuality=0", "-shadowQuality=0", "-reflectionQuality=0", "-particleQuality=0",
+                    "-grassQuality=0", "-cityDensity=0.2", "-lodScale=0.2", "-pedLodBias=0", "-vehicleLodBias=0", "-pedVariety=0.2", "-vehicleVariety=0.2"]
+        case .quality:
+            return ["-shaderQuality=1", "-textureQuality=1", "-shadowQuality=0", "-reflectionQuality=1", "-particleQuality=1",
+                    "-grassQuality=1", "-cityDensity=0.4", "-lodScale=0.4", "-pedLodBias=0.2", "-vehicleLodBias=0.2", "-pedVariety=0.4", "-vehicleVariety=0.4"]
+        case .ultra:
+            return ["-shaderQuality=2", "-textureQuality=1", "-shadowQuality=1", "-reflectionQuality=2", "-particleQuality=1",
+                    "-grassQuality=1", "-cityDensity=0.6", "-lodScale=0.6", "-pedLodBias=0.4", "-vehicleLodBias=0.4", "-pedVariety=0.6", "-vehicleVariety=0.6"]
+        case .max:
+            return ["-shaderQuality=2", "-textureQuality=2", "-shadowQuality=2", "-reflectionQuality=2", "-particleQuality=2",
+                    "-grassQuality=2", "-cityDensity=1", "-lodScale=1", "-pedLodBias=0.6", "-vehicleLodBias=0.6", "-pedVariety=0.8", "-vehicleVariety=0.8"]
+        }
+    }
+}
+
 /// What this device can afford, measured before the engine starts.
 struct DeviceTier {
     let memoryLimitMB: Int
@@ -10,22 +48,21 @@ struct DeviceTier {
     let model: String
     let supportsBCTextures: Bool
 
+    /// BC textures sampled as they are; the property exists from iOS 16.4 (before that: decoded).
+    static func readsBC(_ device: MTLDevice?) -> Bool {
+        guard let device else { return false }
+        if #available(iOS 16.4, *) { return device.supportsBCTextureCompression }
+        return false
+    }
+
     static func probe() -> DeviceTier {
         var info = utsname(); uname(&info)
         let model = withUnsafeBytes(of: &info.machine) { String(decoding: $0.prefix { $0 != 0 }, as: UTF8.self) }
         let device = MTLCreateSystemDefaultDevice()
         return DeviceTier(memoryLimitMB: Self.processMemoryLimitMB(),
-                          physicalMemoryMB: physicalMemoryMB(),
+                          physicalMemoryMB: Int(ProcessInfo.processInfo.physicalMemory / 1_048_576),
                           model: model,
-                          supportsBCTextures: device?.supportsBCTextureCompression ?? false)
-    }
-
-    private static func physicalMemoryMB() -> Int {
-        #if targetEnvironment(simulator)
-        return Int(ProcessInfo.processInfo.environment["PG_SIM_PHYSICAL_MEMORY_MB"] ?? "") ?? 6144
-        #else
-        return Int(ProcessInfo.processInfo.physicalMemory / 1_048_576)
-        #endif
+                          supportsBCTextures: Self.readsBC(device))
     }
 
     /// Jetsam limit = memory still available + what the app already uses.
@@ -44,36 +81,65 @@ struct DeviceTier {
         #endif
     }
 
-    /// 6 GB phones (about 4.1 GB limit) are already at the edge on Performance.
+    /// The Metal renderer needs about 700 MB less than the old renderer did: a 6 GB phone on a
+    /// free Apple ID (about 3 GB limit) runs Battery with room to spare.
     var recommended: GraphicsPreset {
-        // Under ~3.6 GB (e.g. a 6 GB phone signed with a free Apple ID, which
-        // cannot get the extra-memory entitlement) only the lightest preset fits.
-        memoryLimitMB < 3600 ? .battery : memoryLimitMB < 5000 ? .performance : memoryLimitMB < 7000 ? .balanced : .quality
+        memoryLimitMB < 3400 ? .battery : memoryLimitMB < 4600 ? .performance : memoryLimitMB < 6000 ? .balanced : memoryLimitMB < 8000 ? .quality : .ultra
     }
-    /// Keep Extreme visible on high-RAM phones even when signing or iOS
-    /// restricts this process. Its warning and live streaming guard still apply.
-    var allowed: [GraphicsPreset] {
-        let normal: [GraphicsPreset]
-        if memoryLimitMB < 3600 { normal = [.battery, .performance] }
-        else if memoryLimitMB < 5000 { normal = [.battery, .performance, .balanced] }
-        else if memoryLimitMB < 7000 { normal = [.battery, .performance, .balanced, .quality] }
-        else { normal = [.battery, .performance, .balanced, .quality, .ultra] }
-        return GraphicsPreset.displayOrder.filter {
-            normal.contains($0) || ($0 == .extreme && physicalMemoryMB >= 10_240)
+    /// Every preset can be chosen; those above the recommended one show a warning.
+    var allowed: [GraphicsPreset] { GraphicsPreset.allCases }
+    /// Presets shown with a warning because they may run out of memory or heat up.
+    func risky(_ preset: GraphicsPreset) -> Bool { preset.rawValue > recommended.rawValue }
+    /// For the log (kept in English).
+    var summary: String { "\(model) · \(physicalMemoryMB / 1024) GB · app limit \(memoryLimitMB) MB\(supportsBCTextures ? " · BC textures" : "")" }
+    /// The same line for Settings, in the app's language.
+    var displaySummary: String {
+        AppLanguage.interpolate(AppLanguage.choose("{arg0} · {arg1} GB · app limit {arg2} MB"), [model, String(physicalMemoryMB / 1024), String(memoryLimitMB)])
+            + (supportsBCTextures ? " · " + AppLanguage.choose("BC textures") : "")
+    }
+
+    /// Whether this install was signed with the increased memory limit (Apple grants it per
+    /// signature, so a sideloading tool can drop it). nil when it can't be read.
+    static let increasedMemoryGranted: Bool? = entitlement("com.apple.developer.kernel.increased-memory-limit")
+    /// For Settings and the log: is the extra memory actually in effect?
+    var increasedMemoryStatus: String {
+        switch Self.increasedMemoryGranted {
+        case true?: return AppLanguage.interpolate(AppLanguage.choose("Extra memory: on. This install has the increased memory limit, so the game may use up to {arg0} MB."), ["\(memoryLimitMB)"])
+        case false?: return AppLanguage.interpolate(AppLanguage.choose("Extra memory: off. This install was signed without the increased memory limit, so the game gets the normal {arg0} MB. Install the \"unlimited\" build with a paid developer account, or GetMoreRam on a free one, for more."), ["\(memoryLimitMB)"])
+        case nil: return AppLanguage.interpolate(AppLanguage.choose("Extra memory: unknown. The game may use up to {arg0} MB."), ["\(memoryLimitMB)"])
         }
     }
-    /// Presets shown with a warning because they may run out of memory or heat up.
-    func risky(_ preset: GraphicsPreset) -> Bool { preset == .extreme ? memoryLimitMB < 8704 : preset.rawValue > recommended.rawValue }
-    var summary: String { "\(model) · \(physicalMemoryMB / 1024) GB · app limit \(memoryLimitMB) MB\(supportsBCTextures ? " · BC textures" : "")" }
+
+    /// Reads a boolean entitlement of this app (SecTask is not public on iOS, so it is looked up at run time).
+    private static func entitlement(_ key: String) -> Bool? {
+        #if targetEnvironment(simulator)
+        return nil
+        #else
+        typealias Create = @convention(c) (CFAllocator?) -> Unmanaged<AnyObject>?
+        typealias Copy = @convention(c) (AnyObject, CFString, UnsafeMutablePointer<Unmanaged<CFError>?>?) -> Unmanaged<AnyObject>?
+        guard let handle = dlopen("/System/Library/Frameworks/Security.framework/Security", RTLD_LAZY),
+              let create = dlsym(handle, "SecTaskCreateFromSelf"), let copy = dlsym(handle, "SecTaskCopyValueForEntitlement"),
+              let task = unsafeBitCast(create, to: Create.self)(nil)?.takeRetainedValue() else { return nil }
+        let value = unsafeBitCast(copy, to: Copy.self)(task, key as CFString, nil)?.takeRetainedValue()
+        return (value as? Bool) ?? false
+        #endif
+    }
 }
 
 enum GraphicsConfiguration {
-    /// Width/height for a preset and a 0.5...1.0 resolution scale, matching
-    /// the screen's shape so the picture is not stretched.
-    static func size(for preset: GraphicsPreset, scale: Double, screen: CGSize, matchScreenShape: Bool) -> (Int, Int) {
+    /// The screen's height in pixels (the "Native" resolution).
+    static var nativeHeight: Int {
+        let screen = UIScreen.main
+        return Int(min(screen.nativeBounds.width, screen.nativeBounds.height))
+    }
+    /// Resolutions offered in Settings, besides "Auto" (the detail preset's own).
+    static var resolutionChoices: [Int] { [540, 720, 900, 1080].filter { $0 < nativeHeight } + [nativeHeight] }
+    /// Width/height to render at: the chosen height (or the preset's), shaped like the screen so the
+    /// picture is not stretched.
+    static func size(for preset: GraphicsPreset, renderHeight: Int, screen: CGSize, matchScreenShape: Bool) -> (Int, Int) {
         let aspect = matchScreenShape && screen.height > 0 ? max(screen.width, screen.height) / min(screen.width, screen.height) : 16.0 / 9.0
-        var height = Double(preset.height) * min(max(scale, 0.5), 1.0)
-        height = max(height, 360)
+        var height = Double(renderHeight > 0 ? renderHeight : preset.height)
+        height = min(max(height, 360), Double(max(nativeHeight, 720)))
         let width = min(height * aspect, 3840)
         func even(_ value: Double) -> Int { Int(value.rounded()) & ~1 }
         return (even(width), even(height))
@@ -82,45 +148,16 @@ enum GraphicsConfiguration {
     /// Pass the chosen settings to the engine. Call before PGStartEngine.
     static func apply(_ settings: GameSettings, screen: CGSize) -> String {
         let preset = settings.graphicsPreset
-        let (width, height) = size(for: preset, scale: settings.resolutionScale, screen: screen, matchScreenShape: settings.matchScreenShape)
-        let resourcePreset = preset.resourcePreset(memoryLimitMB: settings.tier.memoryLimitMB)
-        var options = resourcePreset.engineOptions
-        if settings.sharperWorld && resourcePreset.rawValue >= GraphicsPreset.balanced.rawValue {
-            // Increase the distance at which detailed geometry is drawn.
-            // Keep textures at the original size on memory-constrained devices.
-            let level: (lod: String, ped: String, vehicle: String)
-            switch resourcePreset {
-            case .balanced: level = ("0.30", "0.10", "0.10")
-            case .quality:  level = ("0.50", "0.30", "0.30")
-            case .ultra:    level = ("0.70", "0.50", "0.50")
-            case .extreme:  level = ("0.70", "0.40", "0.40")
-            default:       level = ("0", "0", "0")
-            }
-            let overrides = [
-                "-lodScale=": level.lod,
-                "-pedLodBias=": level.ped,
-                "-vehicleLodBias=": level.vehicle
-            ]
-            for index in options.indices {
-                for (prefix, value) in overrides where options[index].hasPrefix(prefix) {
-                    options[index] = prefix + value
-                }
-            }
-            if resourcePreset == .balanced && settings.tier.memoryLimitMB >= 5000,
-               let index = options.firstIndex(where: { $0.hasPrefix("-textureQuality=") }) {
-                options[index] = "-textureQuality=1"
-            }
-        }
-        options = settings.viewDistance.apply(to: options)
-        PGSetTextureClarity(UInt32(settings.textureClarity.rawValue))
-        PGSetProcessMemoryBudget(preset.processBudgetMB)
+        let (width, height) = size(for: preset, renderHeight: settings.renderHeight, screen: screen, matchScreenShape: settings.matchScreenShape)
+        let options = preset.engineOptions
+        PGSetMemoryCap(Int32(settings.memoryCapMB))
         var pointers = options.map { strdup($0) }
         defer { pointers.forEach { free($0) } }
         pointers.withUnsafeMutableBufferPointer { buffer in
             buffer.baseAddress!.withMemoryRebound(to: UnsafePointer<CChar>?.self, capacity: buffer.count) {
-                PGConfigureEngine($0, UInt32(buffer.count), Int32(width), Int32(height), settings.frameRateOption.engineFrameLimit)
+                PGConfigureEngine($0, UInt32(buffer.count), Int32(width), Int32(height), settings.frameRateCap == 0 ? 0 : settings.frameRateCap == 60 ? 1 : 2)
             }
         }
-        return "\(preset.title) \(width)×\(height) at \(settings.frameRateOption.rawValue) FPS"
+        return "\(preset.title) \(width)×\(height) at \(GameSettings.frameRateTitle(settings.frameRateCap))"
     }
 }
