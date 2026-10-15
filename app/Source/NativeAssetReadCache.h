@@ -76,20 +76,38 @@ static inline int64_t pg_asset_read_cached(PGAssetReadCache *cache,uint32_t id,c
     }
     pg_asset_read_release(cache,slot);return result;
 }
-static inline bool pg_asset_read_warm(PGAssetReadCache *cache,uint32_t id,const char *dataPath,
-        const char *mapPath,uint64_t size,uint64_t offset,size_t length) {
+// Hints share the demand reader's descriptors and check the complete requested
+// range once. A failed disk advisory does not turn cached bytes into a miss.
+static inline bool pg_asset_read_hint(PGAssetReadCache *cache,uint32_t id,const char *dataPath,
+        const char *mapPath,uint64_t size,uint64_t offset,size_t length,bool warm,bool *warmed) {
+    if(warmed)*warmed=false;
     if(offset>=size || !length)return false;
     if(length>size-offset)length=(size_t)(size-offset);
-    if(length>1024*1024)length=1024*1024;
     PGAssetReadHandle *slot=pg_asset_read_acquire(cache,id,dataPath,mapPath,size);if(!slot)return false;
     bool present=pg_asset_read_present(slot,offset,length);
 #if defined(__APPLE__) && defined(F_RDADVISE)
-    if(present) { struct radvisory advice={(off_t)offset,(int)length}; present=fcntl(slot->dataFD,F_RDADVISE,&advice)==0; }
+    if(present && warm) {
+        size_t warmLength=length>1024*1024?1024*1024:length;
+        struct radvisory advice={(off_t)offset,(int)warmLength};
+        bool accepted=fcntl(slot->dataFD,F_RDADVISE,&advice)==0;
+        if(warmed)*warmed=accepted;
+    }
 #else
     // Tests verify the published-range gate without reading uncached sparse bytes.
-    (void)offset;
+    (void)warm;
 #endif
     pg_asset_read_release(cache,slot);return present;
+}
+static inline bool pg_asset_read_warm(PGAssetReadCache *cache,uint32_t id,const char *dataPath,
+        const char *mapPath,uint64_t size,uint64_t offset,size_t length) {
+    if(length>1024*1024)length=1024*1024;
+    bool warmed=false;
+    bool present=pg_asset_read_hint(cache,id,dataPath,mapPath,size,offset,length,true,&warmed);
+#if defined(__APPLE__) && defined(F_RDADVISE)
+    return present && warmed;
+#else
+    return present;
+#endif
 }
 static inline void pg_asset_read_cache_close(PGAssetReadCache *cache) {
     pthread_mutex_lock(&cache->lock);

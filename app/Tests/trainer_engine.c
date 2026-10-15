@@ -6,6 +6,7 @@
 #include <string.h>
 #include <math.h>
 #include <time.h>
+#include <unistd.h>
 typedef uint32_t u32;
 typedef uint64_t u64;
 typedef struct { uint64_t w2c_g0; } w2c_game;
@@ -52,6 +53,24 @@ void w2c_game_f52941(w2c_game *g,u32 level) { (void)g; gravityLevel=level; }
 static void request(w2c_game *game,u32 command) { assert(PGTrainerRequest(command)); pg_trainer_tick(game); assert(game->w2c_g0==31000000); }
 #include "wardrobe_fixture.inc"
 static void pointer(uint64_t address, uint64_t value) { memcpy(env.memory.data+address, &value, 8); }
+static PGSandboxCheckpoint fixturePosition={100,-200,42,270,0};
+static bool fixtureFrozen,fixtureCollision=true;
+void w2c_game_f50028(w2c_game *g,u64 at,u32 handle,u32 alive) {
+    (void)g;assert(handle==101 && alive==1);
+    memcpy(env.memory.data+at,&fixturePosition.x,4);
+    memcpy(env.memory.data+at+8,&fixturePosition.y,4);
+    memcpy(env.memory.data+at+16,&fixturePosition.z,4);
+}
+void w2c_game_f60328(w2c_game *g,u64 at) {(void)g;assert(at<env.memory.size-24);}
+void w2c_game_f50133(w2c_game *g,u32 handle,u64 at,u32 tasks,u32 ik,u32 warp) {
+    (void)g;assert(handle==101 && !tasks && !ik && warp);
+    memcpy(&fixturePosition.x,env.memory.data+at,4);
+    memcpy(&fixturePosition.y,env.memory.data+at+8,4);
+    memcpy(&fixturePosition.z,env.memory.data+at+16,4);
+}
+void w2c_game_f50135(w2c_game *g,u32 handle,float heading) {(void)g;assert(handle==101);fixturePosition.heading=heading;}
+void w2c_game_f50102(w2c_game *g,u32 handle,u32 frozen) {(void)g;assert(handle==101);fixtureFrozen=frozen!=0;}
+u32 w2c_game_f50141(w2c_game *g,u32 handle) {(void)g;assert(handle==101);return fixtureCollision;}
 int main(void) {
     w2c_game game = {.w2c_g0=31000000};
     pg_trainer_tick(&game);
@@ -154,6 +173,32 @@ int main(void) {
     request(&game,168); assert(fixtureDrawable[12]==0); request(&game,169); assert(fixtureDrawable[12]==-1);
     fixtureValid=false; request(&game,132); assert(PGTrainerStatus()==PG_TRAINER_UNAVAILABLE); fixtureValid=true;
     configuredStartMode=1; request(&game,132); assert(PGTrainerStatus()==PG_TRAINER_HANDLED); // Story clothes allowed, Story skins blocked
+    char checkpointDirectory[]="/tmp/pg-sandbox-engine.XXXXXX";
+    assert(mkdtemp(checkpointDirectory));
+    pg_sandbox_store_configure(checkpointDirectory);
+    PGSandboxCheckpoint checkpoint={750,-1250,45,90,1000};
+    assert(pg_sandbox_store_write(&checkpoint));
+    sandboxResumeChecked=false; configuredStartMode=2; fixtureCollision=false;
+    pg_trainer_tick(&game);
+    assert(sandboxResumePending && fixtureFrozen && fixturePosition.x==750);
+    assert(!PGSandboxSaveAvailable() && !PGSandboxSaveRequest());
+    now+=1; pg_trainer_tick(&game); assert(fixtureFrozen);
+    fixtureCollision=true; pg_trainer_tick(&game); assert(!fixtureFrozen && !sandboxResumePending);
+    pg_trainer_tick(&game); assert(PGSandboxSaveAvailable());
+    fixturePosition.x=900;
+    assert(PGSandboxSaveRequest());assert(!PGSandboxSaveRequest());pg_trainer_tick(&game);
+    for(int i=0;i<1000 && PGSandboxSaveStatus()==1;i++)usleep(1000);
+    assert(PGSandboxSaveStatus()==2);
+    assert(pg_sandbox_store_load(&checkpoint) && checkpoint.x==900);
+    sandboxResumeChecked=false; fixturePosition.x=123; fixtureCollision=false;
+    pg_trainer_tick(&game); assert(fixturePosition.x==900 && fixtureFrozen);
+    now+=21; pg_trainer_tick(&game); assert(fixturePosition.x==123 && !fixtureFrozen);
+    char checkpointFile[1024];
+    snprintf(checkpointFile,sizeof checkpointFile,"%s/sandbox-checkpoint.bin",checkpointDirectory);unlink(checkpointFile);
+    snprintf(checkpointFile,sizeof checkpointFile,"%s/sandbox-checkpoint.bin.1",checkpointDirectory);unlink(checkpointFile);
+    snprintf(checkpointFile,sizeof checkpointFile,"%s/sandbox-checkpoint.bin.2",checkpointDirectory);unlink(checkpointFile);
+    rmdir(checkpointDirectory);
+    puts("SANDBOX ENGINE CHECKS PASSED: save handoff, persisted location, collision-gated resume, duplicate requests and timeout rollback.");
     puts("WARDROBE CHECKS PASSED: bounded variants, prop removal, saved-look model guard, asynchronous loading, timeouts and Story protection.");
     free(env.memory.data);
     puts("TRAINER DISPATCH CHECKS PASSED: 85 routes, frame powers, exclusive ammo, named weather, stack lifetime, flight controls and cleanup.");

@@ -20,6 +20,7 @@
 #include "NativeMemoryBudget.h"
 #include "NativeTrainer.h"
 #include "NativeVehicleCamera.h"
+#include "NativeSandboxSave.h"
 
 static struct w2c_env env;
 static struct w2c_wasi__snapshot__preview1 wasi = { .env = &env };
@@ -591,6 +592,7 @@ void PGStartEngine(const char *path, const char *filesRoot, PGLogCallback callba
   if (atomic_exchange(&started, true)) return;
   manifestPath = strdup(path);
   pg_files_init(filesRoot);
+  pg_sandbox_store_configure(filesRoot);
   logCallback = callback; logContext = context;
   pg_assets_configure(path, filesRoot);
   pthread_attr_t attributes;

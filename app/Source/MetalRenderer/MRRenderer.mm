@@ -202,6 +202,7 @@ struct Renderer {
 	FrameWork work;
 	uint64_t statDraws = 0, statPresents = 0, statSkips = 0, statPending = 0, statCommits = 0;
 	PGFrameRateWindow fpsWindow;
+	std::mutex fpsLock;
 	std::atomic<double> fps{0}, lastPresent{0};
 	bool firstFrame = false, worldSent = false;
 	double worldSince = 0, worldClean = 0;
@@ -1528,12 +1529,20 @@ static void present(uint32_t texId) {
 		}
 	}
 	FrameRing &f = R->frames[R->frame % FRAME_SLOTS];
+	if (drawable) {
+		Renderer *renderer = R;
+		[drawable addPresentedHandler:^(id<MTLDrawable> shown) {
+			double time = shown.presentedTime;
+			if (time <= 0) return;
+			std::lock_guard<std::mutex> guard(renderer->fpsLock);
+			renderer->lastPresent.store(time);
+			if (renderer->fpsWindow.record(time)) renderer->fps.store(renderer->fpsWindow.rate);
+		}];
+	}
 	commit(CPresent, drawable);
 	f.lastSerial = R->serial - 1;
 	R->presents++;
 	double now = CACurrentMediaTime();
-	R->lastPresent.store(now);
-	if (R->fpsWindow.record(now)) R->fps.store(R->fpsWindow.rate);
 	// loading progress for the app: first frame, then the world once 1.5 s went by without draws waiting for pipelines
 	if (!R->firstFrame) { R->firstFrame = true; pg_log("{\"pct\":76,\"label\":\"First frame\"}"); }
 	uint64_t d = R->draws - R->drawsAtPresent;

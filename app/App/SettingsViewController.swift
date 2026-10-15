@@ -80,7 +80,7 @@ final class SettingsViewController: UITableViewController {
         switch sections[section] {
         case .mode: return GameMode.allCases.count
         case .graphics: return settings.tier.allowed.count + 6
-        case .controls: return 7
+        case .controls: return 9
         case .gyro: return (settings.gyroAim == .off ? 1 : 3) + (settings.tiltSteer == .off ? 1 : 2)
         case .files: return fileRows.count
         case .device: return 1
@@ -112,7 +112,7 @@ final class SettingsViewController: UITableViewController {
             text += " Farther detail and texture clarity increase GPU load. Pixel sharpness also depends on resolution scale and the graphics preset."
             return text
         case .controls:
-            return "Direct touch look: finger distance controls camera distance, with no stick dead zone or acceleration. Stopping your finger stops the camera. You can also drag from Aim or Fire while holding those actions. Left stick still moves your character."
+            return "Use Move buttons to save separate layouts for walking, each vehicle type, and menus. Reset in the editor restores every button position. Direct touch look: finger distance controls camera distance, with no stick dead zone or acceleration. Stopping your finger stops the camera. You can also drag from Aim or Fire while holding those actions. Left stick still moves your character."
         case .gyro:
             return "Move the phone to fine-tune your aim; turning your body turns the camera. Tilt steering turns the phone like a steering wheel: Assist adds fine control on top of the touch steering, Tilt to steer replaces it. The straight-ahead angle is however you hold the phone when you get in."
         case .files: return filesFooter()
@@ -178,7 +178,7 @@ final class SettingsViewController: UITableViewController {
                     let button = UIButton(configuration: .gray())
                     button.configuration?.title = "\(settings.frameRateOption.rawValue) FPS"
                     button.accessibilityIdentifier = "graphics.fps"
-                    button.menu = UIMenu(children: FrameRateOption.allCases.map { option in
+                    button.menu = UIMenu(children: FrameRateOption.allCases.filter { $0.rawValue >= 60 }.map { option in
                         UIAction(title: option.title, state: option == settings.frameRateOption ? .on : .off) { [weak self] _ in
                             self?.settings.frameRateOption = option
                             self?.reload(.graphics)
@@ -229,6 +229,15 @@ final class SettingsViewController: UITableViewController {
             case 0:
                 cell.accessoryView = slider(settings.lookSensitivity, 0.3, 12, label: "Look speed") { [weak self] in self?.settings.lookSensitivity = $0 }
                 content.text = "Swipe look sensitivity"
+            case 7:
+                cell.accessoryView = slider(settings.drivingLookSensitivity, 0.3, 12, label: "Driving look speed") { [weak self] in self?.settings.drivingLookSensitivity = $0 }
+                content.text = "Driving swipe sensitivity"
+            case 8:
+                content.text = "Move buttons"
+                content.secondaryText = "Drag controls into place; layouts save automatically"
+                cell.accessibilityIdentifier = "controls.edit-layout"
+                cell.accessoryType = .disclosureIndicator
+                cell.selectionStyle = .default
             case 6:
                 content.text = "Keep driving camera angle"
                 content.secondaryText = "Keep your chosen angle after looking around in a vehicle"
@@ -340,6 +349,13 @@ final class SettingsViewController: UITableViewController {
             return
         }
         if sections[indexPath.section] == .files { selectFileRow(fileRows[indexPath.row]); return }
+        if sections[indexPath.section] == .controls, indexPath.row == 8 {
+            let editor = TouchLayoutViewController()
+            editor.modalPresentationStyle = .fullScreen
+            editor.layoutChanged = { [weak self] in self?.controlsChanged?() }
+            present(editor, animated: true)
+            return
+        }
         let presets = settings.tier.allowed
         guard sections[indexPath.section] == .graphics, indexPath.row < presets.count else { return }
         settings.graphicsPreset = presets[indexPath.row]

@@ -20,7 +20,7 @@ final class NativePortViewController: UIViewController, MTKViewDelegate {
     private var lastFPSLabelUpdate: CFTimeInterval = 0
     private var launchButton: UIButton { home.playButton }
     private var preloadLabel: UILabel { home.downloadLabel }
-    private let audioEngine = AVAudioEngine()
+    private var audioEngine = AVAudioEngine()
     private var audioSource: AVAudioSourceNode?
     private var audioInterrupted = false
     private var displayLink: CADisplayLink?
@@ -47,6 +47,9 @@ final class NativePortViewController: UIViewController, MTKViewDelegate {
     private var diagnosticsOverlay: UIView?
     private var pendingLaunch = false
     private var changingOrientation = false
+    private let saveStatusLabel = UILabel()
+    private var sandboxSavePending = false
+    private var saveStatusHideAt: CFTimeInterval?
     #if targetEnvironment(simulator)
     private var simulatorKeys = Set<UIKeyboardHIDUsage>()
     override var canBecomeFirstResponder: Bool { true }
@@ -155,7 +158,26 @@ final class NativePortViewController: UIViewController, MTKViewDelegate {
         touchControls.inputChanged = { [weak self] in self?.pollController() }
         touchControls.openSettings = { [weak self] in self?.showSettings() }
         touchControls.openTrainer = { [weak self] in self?.showTrainer() }
+        touchControls.openSandboxSave = { [weak self] in self?.saveSandboxPosition() }
         view.addSubview(touchControls)
+        saveStatusLabel.textColor = .white
+        saveStatusLabel.font = .systemFont(ofSize: 14, weight: .semibold)
+        saveStatusLabel.textAlignment = .center
+        saveStatusLabel.backgroundColor = UIColor.black.withAlphaComponent(0.8)
+        saveStatusLabel.layer.cornerRadius = 10
+        saveStatusLabel.clipsToBounds = true
+        saveStatusLabel.isHidden = true
+        saveStatusLabel.isUserInteractionEnabled = false
+        saveStatusLabel.accessibilityIdentifier = "sandbox.save-status"
+        saveStatusLabel.translatesAutoresizingMaskIntoConstraints = false
+        view.addSubview(saveStatusLabel)
+        NSLayoutConstraint.activate([
+            saveStatusLabel.centerXAnchor.constraint(equalTo: view.centerXAnchor),
+            saveStatusLabel.topAnchor.constraint(equalTo: view.safeAreaLayoutGuide.topAnchor, constant: 58),
+            saveStatusLabel.widthAnchor.constraint(lessThanOrEqualTo: view.safeAreaLayoutGuide.widthAnchor, multiplier: 0.9),
+            saveStatusLabel.widthAnchor.constraint(greaterThanOrEqualToConstant: 280),
+            saveStatusLabel.heightAnchor.constraint(equalToConstant: 40)
+        ])
         NSLayoutConstraint.activate([
             touchControls.leadingAnchor.constraint(equalTo: view.leadingAnchor),
             touchControls.trailingAnchor.constraint(equalTo: view.trailingAnchor),
@@ -187,8 +209,9 @@ final class NativePortViewController: UIViewController, MTKViewDelegate {
         NotificationCenter.default.addObserver(self, selector: #selector(releaseTouchControls), name: UIApplication.willResignActiveNotification, object: nil)
         NotificationCenter.default.addObserver(self, selector: #selector(leftApp), name: UIApplication.didEnterBackgroundNotification, object: nil)
         NotificationCenter.default.addObserver(self, selector: #selector(audioInterruption(_:)), name: AVAudioSession.interruptionNotification, object: nil)
-        NotificationCenter.default.addObserver(self, selector: #selector(audioConfigurationChanged), name: .AVAudioEngineConfigurationChange, object: audioEngine)
-        NotificationCenter.default.addObserver(self, selector: #selector(resumeAudio), name: UIApplication.didBecomeActiveNotification, object: nil)
+        NotificationCenter.default.addObserver(self, selector: #selector(audioConfigurationChanged), name: .AVAudioEngineConfigurationChange, object: nil)
+        NotificationCenter.default.addObserver(self, selector: #selector(becameActive), name: UIApplication.didBecomeActiveNotification, object: nil)
+        NotificationCenter.default.addObserver(self, selector: #selector(audioServicesReset), name: AVAudioSession.mediaServicesWereResetNotification, object: nil)
         if let message = GameSettings.shared.recoverFromFailedBoot() {
             appendLog(message)
             controllerLabel.text = message
@@ -481,6 +504,7 @@ final class NativePortViewController: UIViewController, MTKViewDelegate {
               let type = AVAudioSession.InterruptionType(rawValue: raw) else { return }
         if type == .began {
             audioInterrupted = true
+            releaseTouchControls()
             audioEngine.pause()
         } else {
             audioInterrupted = false
@@ -494,16 +518,34 @@ final class NativePortViewController: UIViewController, MTKViewDelegate {
     }
 
     @objc private func resumeAudio() {
-        guard engineStarted, audioSource != nil, !audioInterrupted,
+        guard engineStarted, !audioInterrupted,
               UIApplication.shared.applicationState == .active, !audioEngine.isRunning else { return }
         startAudio()
     }
 
+    @objc private func audioServicesReset() {
+        DispatchQueue.main.async { [weak self] in
+            guard let self else { return }
+            self.audioEngine.stop()
+            self.audioEngine = AVAudioEngine()
+            self.audioSource = nil
+            self.audioInterrupted = false
+            if self.engineStarted, UIApplication.shared.applicationState == .active { self.startAudio() }
+        }
+    }
+
+    @objc private func becameActive() {
+        lastControllerPoll = nil
+        displayLink?.isPaused = false
+        updatePollingRate()
+        resumeAudio()
+    }
+
     private func updatePollingRate() {
         let requested = GameSettings.shared.frameRateOption.rawValue
-        let supported = max(30, min(requested, UIScreen.main.maximumFramesPerSecond))
+        let supported = max(60, min(requested, UIScreen.main.maximumFramesPerSecond))
         displayLink?.preferredFrameRateRange = CAFrameRateRange(
-            minimum: 30, maximum: Float(supported), preferred: Float(supported)
+            minimum: 60, maximum: Float(supported), preferred: Float(supported)
         )
     }
 
@@ -552,7 +594,51 @@ final class NativePortViewController: UIViewController, MTKViewDelegate {
             }
         }.resume()
     }
-    @objc private func leftApp() { if stableTimer?.isValid != false { GameSettings.shared.markBootInterrupted() } }
+    @objc private func leftApp() {
+        releaseTouchControls()
+        displayLink?.isPaused = true
+        audioEngine.pause()
+        if stableTimer?.isValid != false { GameSettings.shared.markBootInterrupted() }
+    }
+
+    private func showSaveStatus(_ message: String, persistent: Bool = false) {
+        saveStatusLabel.text = "  " + message + "  "
+        saveStatusLabel.isHidden = false
+        saveStatusHideAt = persistent ? nil : CACurrentMediaTime() + 5
+        UIAccessibility.post(notification: .announcement, argument: message)
+    }
+
+    private func saveSandboxPosition() {
+        guard engineStarted, bootedMode == .sandbox else { return }
+        guard !sandboxSavePending else { return }
+        guard PGSandboxSaveAvailable(), PGSandboxSaveRequest() else {
+            showSaveStatus("Can't save yet. Wait for the world to finish loading.")
+            return
+        }
+        sandboxSavePending = true
+        showSaveStatus("Saving Sandbox position...", persistent: true)
+    }
+
+    private func updateSandboxSaveStatus() {
+        if sandboxSavePending {
+            switch PGSandboxSaveStatus() {
+            case 2:
+                sandboxSavePending = false
+                showSaveStatus("Sandbox position saved")
+            case 3:
+                sandboxSavePending = false
+                showSaveStatus("Can't save yet. Wait for the world to finish loading.")
+            case 4:
+                sandboxSavePending = false
+                showSaveStatus("Couldn't save. Your previous save is kept.")
+            default: break
+            }
+        }
+        if let hideAt = saveStatusHideAt, CACurrentMediaTime() >= hideAt {
+            saveStatusLabel.isHidden = true
+            saveStatusHideAt = nil
+        }
+    }
 
     private func showTrainer() {
         guard engineStarted, presentedViewController == nil else { return }
@@ -568,7 +654,7 @@ final class NativePortViewController: UIViewController, MTKViewDelegate {
 
     private func showSettings(section: LauncherSection? = nil) {
         guard presentedViewController == nil else { return }
-        touchControls.reset()
+        releaseTouchControls()
         let controller = SettingsViewController(engineRunning: engineStarted, runningMode: bootedMode, initialSection: section)
         controller.gameModeChanged = { [weak self] in self?.refreshModeChoice() }
         controller.resolutionChanged = { [weak self] in self?.applyLiveResolution() }
@@ -598,6 +684,9 @@ final class NativePortViewController: UIViewController, MTKViewDelegate {
         touchControls.reset(publish: false)
         gyro.setRunning(false, orientation: .landscapeRight)
         lastControllerPoll = nil
+        tiltNeutral = nil
+        tiltSince = nil
+        tiltSmoothed = 0
         #if targetEnvironment(simulator)
         simulatorKeys.removeAll()
         #endif
@@ -610,7 +699,10 @@ final class NativePortViewController: UIViewController, MTKViewDelegate {
             PGUpdateVirtualPad(PGPadState())
             return
         }
+        updateSandboxSaveStatus()
         if presentedViewController != nil {
+            gyro.setRunning(false, orientation: .landscapeRight)
+            lastControllerPoll = nil
             PGUpdateVirtualPad(PGPadState())
             PGResetCameraLook()
             return
@@ -631,6 +723,7 @@ final class NativePortViewController: UIViewController, MTKViewDelegate {
             state = PGPadState(gamepad: pad)
         }
         touchControls.isHidden = !touchControlsAvailable
+        touchControls.sandboxSaveVisible = touchControlsAvailable && bootedMode == .sandbox
         var vehicle = touchControlsAvailable ? PGCurrentTouchContext() : 0
         var pauseMenu = PGPauseMenuActive()
         // Debug: --preview-context <vehicle type + 1 | menu> to review a layout.
@@ -714,6 +807,7 @@ final class NativePortViewController: UIViewController, MTKViewDelegate {
 
 extension NativePortViewController: UIAdaptivePresentationControllerDelegate {
     func presentationControllerDidDismiss(_ presentationController: UIPresentationController) {
+        releaseTouchControls()
         refreshHomeDetails()
     }
 }

@@ -27,7 +27,7 @@ enum ControlStyle {
     static let accent = UIColor(red: 0.365, green: 0.714, blue: 0.898, alpha: 1)
     /// SF Symbols for controls that have no generated icon.
     static let fallbackSymbol: [String: String] = [
-        "trainer": "slider.horizontal.3", "radio": "radio", "look_back": "arrow.uturn.backward", "up": "chevron.up", "down": "chevron.down",
+        "save": "square.and.arrow.down", "trainer": "slider.horizontal.3", "radio": "radio", "look_back": "arrow.uturn.backward", "up": "chevron.up", "down": "chevron.down",
         "left": "chevron.left", "right": "chevron.right", "accept": "checkmark", "back": "arrow.uturn.left",
         "tab_left": "chevron.left.2", "tab_right": "chevron.right.2", "dive": "arrow.down.to.line",
         "surface": "arrow.up.to.line", "crouch": "figure.walk", "pedal": "bicycle"]
@@ -52,6 +52,7 @@ final class ControlButton: UIView {
         isUserInteractionEnabled = false
         isAccessibilityElement = true
         accessibilityLabel = label
+        accessibilityIdentifier = "controls.button.\(name)"
         accessibilityTraits = .button
         layer.shadowColor = UIColor.black.cgColor
         layer.shadowOpacity = 0.25
@@ -205,6 +206,11 @@ final class TouchControlsView: UIView {
     var inputChanged: (() -> Void)?
     var openSettings: (() -> Void)?
     var openTrainer: (() -> Void)?
+    var openSandboxSave: (() -> Void)?
+    var sandboxSaveVisible = false { didSet { if sandboxSaveVisible != oldValue { updateVisibility() } } }
+    var editingLayout = false
+    private var layoutTouches: [ObjectIdentifier: ControlButton] = [:]
+    private var layoutContext: String { String(describing: context) }
     private(set) var context = ControlContext.onFoot
 
     private enum Role {
@@ -260,6 +266,7 @@ final class TouchControlsView: UIView {
     private let pause = ControlButton("pause", icon: "pause", label: "Pause menu")
     private let trainer = ControlButton("trainer", icon: "trainer", label: "Trainer")
     private let settings = ControlButton("settings", icon: "settings", label: "Settings")
+    private let save = ControlButton("save", icon: "save", label: "Save sandbox position")
     private let lights = ControlButton("lights", icon: "lights", label: "Headlights")
     private let radio = ControlButton("radio", icon: "radio", label: "Radio")
     // Menu and phone dock
@@ -274,7 +281,7 @@ final class TouchControlsView: UIView {
 
     private var allButtons: [ControlButton] {
         [fire, aim, leftFire, jump, enter, weapons, reload, cover, crouch, gas, brake, handbrake, driveBy, horn, lookBack,
-         vehicleWeapon, dive, surface, airFire, gear, camera, phone, pause, trainer, settings, lights, radio,
+         vehicleWeapon, dive, surface, airFire, gear, camera, phone, pause, trainer, settings, save, lights, radio,
          up, down, left, right, accept, back, tabLeft, tabRight]
     }
     private var visible: [ControlButton] = []
@@ -335,6 +342,7 @@ final class TouchControlsView: UIView {
 
     func updateVisibility() {
         visible = computeVisible()
+        if sandboxSaveVisible { visible.append(save) }
         let shown = Set(visible.map(ObjectIdentifier.init))
         let opacity = CGFloat(GameSettings.shared.controlOpacity)
         for button in allButtons {
@@ -378,7 +386,7 @@ final class TouchControlsView: UIView {
         rightStick.baseDiameter = 128 * scale; rightStick.travel = 52 * scale
 
         // Utility bar, top centre: rare actions in the hard-to-reach zone.
-        let order = [radio, lights, camera, phone, pause, trainer, settings]
+        let order = [radio, lights, camera, phone, pause, trainer, save, settings]
         let bar = order.filter { visible.contains($0) }
         for (i, button) in bar.enumerated() {
             let offset = (CGFloat(i) - CGFloat(bar.count - 1) / 2) * 54 * scale / safe.width
@@ -421,6 +429,30 @@ final class TouchControlsView: UIView {
         place(back, 0.765, 0.84, 56)
         place(tabLeft, 0.05, 0.12, 46)
         place(tabRight, 0.95, 0.12, 46)
+        for button in allButtons {
+            if let (x, y) = GameSettings.shared.controlPosition(button.name, context: layoutContext) {
+                button.center = point(CGFloat(x), CGFloat(y))
+            }
+            clampToSafeArea(button)
+        }
+    }
+
+    private func clampToSafeArea(_ button: ControlButton) {
+        let safe = bounds.inset(by: safeAreaInsets).insetBy(dx: 4, dy: 4)
+        let halfWidth = min(button.bounds.width / 2, safe.width / 2)
+        let halfHeight = min(button.bounds.height / 2, safe.height / 2)
+        button.center = CGPoint(x: max(safe.minX + halfWidth, min(safe.maxX - halfWidth, button.center.x)),
+                                y: max(safe.minY + halfHeight, min(safe.maxY - halfHeight, button.center.y)))
+    }
+
+    private func owns(_ button: ControlButton) -> Bool {
+        roles.values.contains { role in
+            switch role {
+            case .button(let held), .fireLook(let held): return held === button
+            case .weaponWheel: return button === weapons
+            default: return false
+            }
+        }
     }
 
     override func hitTest(_ point: CGPoint, with event: UIEvent?) -> UIView? {
@@ -445,8 +477,17 @@ final class TouchControlsView: UIView {
         for touch in touches {
             let point = touch.location(in: self)
             let id = ObjectIdentifier(touch)
+            if editingLayout {
+                if let button = button(at: point), !layoutTouches.values.contains(where: { $0 === button }) {
+                    layoutTouches[id] = button
+                    button.setPressed(true)
+                }
+                continue
+            }
             let leftZone = point.x < safe.minX + safe.width * 0.45
             if let button = button(at: point) {
+                // One owner per button prevents another finger's lift from releasing a held action.
+                guard !owns(button) else { continue }
                 press(button, touch: touch, at: point)
             } else if context == .menu || phoneDock {
                 if !has(isLook) { roles[id] = .look; lookStick.begin(at: point) }
@@ -497,6 +538,8 @@ final class TouchControlsView: UIView {
             DispatchQueue.main.async { self.openTrainer?() }
         case settings:
             DispatchQueue.main.async { self.openSettings?() }
+        case save:
+            DispatchQueue.main.async { self.openSandboxSave?() }
         case up, down, left, right, accept, back:
             lastDockInput = now
         default:
@@ -507,6 +550,15 @@ final class TouchControlsView: UIView {
     override func touchesMoved(_ touches: Set<UITouch>, with event: UIEvent?) {
         for touch in touches {
             let id = ObjectIdentifier(touch)
+            if editingLayout {
+                if let button = layoutTouches[id] {
+                    let point = touch.location(in: self), previous = touch.previousLocation(in: self)
+                    button.center.x += point.x - previous.x
+                    button.center.y += point.y - previous.y
+                    clampToSafeArea(button)
+                }
+                continue
+            }
             guard let role = roles[id] else { continue }
             let point = touch.location(in: self), previous = touch.previousLocation(in: self)
             switch role {
@@ -535,7 +587,7 @@ final class TouchControlsView: UIView {
             case .button(let button):
                 // Pedals: a finger may roll from one to another without lifting.
                 if button.slideTarget, !button.contains(point: point, slop: 10),
-                   let next = self.button(at: point, slidingOnly: true), next !== button {
+                   let next = self.button(at: point, slidingOnly: true), next !== button, !owns(next) {
                     button.setPressed(false)
                     next.setPressed(true)
                     haptics.impactOccurred(intensity: 0.4)
@@ -551,6 +603,18 @@ final class TouchControlsView: UIView {
 
     private func finish(_ touches: Set<UITouch>) {
         for touch in touches {
+            if editingLayout {
+                if let button = layoutTouches.removeValue(forKey: ObjectIdentifier(touch)) {
+                    button.setPressed(false)
+                    let safe = bounds.inset(by: safeAreaInsets)
+                    if safe.width > 0, safe.height > 0 {
+                        GameSettings.shared.setControlPosition(button.name, context: layoutContext,
+                            x: Double((button.center.x - safe.minX) / safe.width),
+                            y: Double((button.center.y - safe.minY) / safe.height))
+                    }
+                }
+                continue
+            }
             guard let role = roles.removeValue(forKey: ObjectIdentifier(touch)) else { continue }
             switch role {
             case .moveStick, .steer: moveStick.end(); sprintSince = nil
@@ -572,6 +636,10 @@ final class TouchControlsView: UIView {
     private func publish() { inputChanged?() }
 
     func reset(publish: Bool = true, keepStickFinger: Bool = false) {
+        for button in layoutTouches.values { button.setPressed(false) }
+        layoutTouches.removeAll()
+        throttle = 0
+        pedalClock = 0
         for (id, role) in roles {
             switch role {
             case .moveStick, .steer:
@@ -606,7 +674,9 @@ final class TouchControlsView: UIView {
         var held = PadButtons()
         let now = CACurrentMediaTime()
 
-        let sensitivity = aiming ? GameSettings.shared.aimSensitivity : GameSettings.shared.lookSensitivity
+        let settings = GameSettings.shared
+        let sensitivity = aiming ? settings.aimSensitivity
+            : (context.driving || context.flying ? settings.drivingLookSensitivity : settings.lookSensitivity)
         let weaponWheelOpen = roles.values.contains { role in
             if case .weaponWheel = role { return true }
             return false
@@ -751,5 +821,83 @@ final class TouchControlsView: UIView {
         let x = min(1, speed / 320)
         let deadZone: CGFloat = 0.24
         return Float(copysign(deadZone + (1 - deadZone) * pow(x, 0.75), velocity))
+    }
+}
+
+
+/// Uses the actual overlay at full screen size, so edited positions match gameplay.
+final class TouchLayoutViewController: UIViewController {
+    private let controls = TouchControlsView(frame: .zero)
+    var layoutChanged: (() -> Void)?
+    override var prefersStatusBarHidden: Bool { true }
+    override var supportedInterfaceOrientations: UIInterfaceOrientationMask { .landscape }
+
+    override func viewDidLoad() {
+        super.viewDidLoad()
+        view.backgroundColor = UIColor(white: 0.10, alpha: 1)
+        controls.editingLayout = true
+        controls.sandboxSaveVisible = true
+        controls.translatesAutoresizingMaskIntoConstraints = false
+        view.addSubview(controls)
+        NSLayoutConstraint.activate([
+            controls.leadingAnchor.constraint(equalTo: view.leadingAnchor),
+            controls.trailingAnchor.constraint(equalTo: view.trailingAnchor),
+            controls.topAnchor.constraint(equalTo: view.topAnchor),
+            controls.bottomAnchor.constraint(equalTo: view.bottomAnchor)
+        ])
+        let instruction = UILabel()
+        instruction.text = "Drag buttons to move them"
+        instruction.font = .systemFont(ofSize: 13, weight: .medium)
+        instruction.textAlignment = .center
+        instruction.textColor = .white
+        let context = UIButton(configuration: .gray())
+        context.accessibilityIdentifier = "controls.layout-context"
+        let contexts: [(String, UInt32, Bool)] = [
+            ("On foot", 0, false), ("Car", 1, false), ("Motorbike", 12, false),
+            ("Bicycle", 13, false), ("Boat", 14, false), ("Submarine", 16, false),
+            ("Helicopter", 9, false), ("Plane", 2, false), ("Menus", 0, true)
+        ]
+        context.configuration?.title = "On foot"
+        context.menu = UIMenu(children: contexts.map { title, vehicle, menu in
+            UIAction(title: title) { [weak self, weak context] _ in
+                self?.controls.reset(publish: false)
+                self?.controls.updateContext(vehicle: vehicle, pauseMenu: menu)
+                context?.configuration?.title = title
+            }
+        })
+        context.showsMenuAsPrimaryAction = true
+        let reset = UIButton(configuration: .gray())
+        reset.configuration?.title = "Reset"
+        reset.accessibilityIdentifier = "controls.layout-reset"
+        reset.addAction(UIAction { [weak self] _ in
+            GameSettings.shared.resetControlPositions()
+            self?.controls.reset(publish: false)
+            self?.controls.setNeedsLayout()
+            self?.layoutChanged?()
+        }, for: .touchUpInside)
+        let done = UIButton(configuration: .filled())
+        done.configuration?.title = "Done"
+        done.accessibilityIdentifier = "controls.layout-done"
+        done.addAction(UIAction { [weak self] _ in
+            self?.controls.reset(publish: false)
+            self?.layoutChanged?()
+            self?.dismiss(animated: true)
+        }, for: .touchUpInside)
+        let buttons = UIStackView(arrangedSubviews: [context, reset, done])
+        buttons.spacing = 8
+        let panel = UIStackView(arrangedSubviews: [instruction, buttons])
+        panel.axis = .vertical
+        panel.spacing = 8
+        panel.isLayoutMarginsRelativeArrangement = true
+        panel.directionalLayoutMargins = NSDirectionalEdgeInsets(top: 10, leading: 12, bottom: 10, trailing: 12)
+        panel.backgroundColor = UIColor.black.withAlphaComponent(0.85)
+        panel.layer.cornerRadius = 14
+        panel.translatesAutoresizingMaskIntoConstraints = false
+        view.addSubview(panel)
+        NSLayoutConstraint.activate([
+            panel.centerXAnchor.constraint(equalTo: view.centerXAnchor),
+            panel.centerYAnchor.constraint(equalTo: view.centerYAnchor),
+            panel.widthAnchor.constraint(equalToConstant: 300)
+        ])
     }
 }

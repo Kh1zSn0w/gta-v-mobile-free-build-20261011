@@ -134,6 +134,7 @@ uint32_t PGTrainerStatus(void) { return atomic_load(&trainerQueue.status); }
 bool PGTrainerInvincible(void) { return atomic_load(&trainerInvincible); }
 
 #include "TrainerWardrobe.inc"
+#include "SandboxEngine.inc"
 
 void pg_trainer_tick(w2c_game *instance) {
     uint8_t *memory = (uint8_t *)(void *)env.memory.data;
@@ -167,6 +168,10 @@ void pg_trainer_tick(w2c_game *instance) {
     if (ready && trainerResetPending) pg_trainer_reset(instance, 0);
     if (ready) trainerPed = ped;
     double trainerNow = timeMS(CLOCK_MONOTONIC) / 1000.0;
+    if (pg_sandbox_tick(instance,ready,ped,trainerNow)) {
+        atomic_store(&trainerQueue.ready,false);
+        return;
+    }
     pg_wardrobe_refresh(instance, ready, ped, trainerNow);
     if (pg_wardrobe_loading(instance, ready, ped, trainerNow)) return;
     uint32_t command = pg_trainer_take(&trainerQueue, ready, trainerNow);

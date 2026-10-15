@@ -71,3 +71,9 @@ void PGTrainerSelectClothingSlot(uint32_t slot);
 uint64_t PGTrainerClothingState(uint32_t slot);
 
 void PGSetVehicleCameraHold(bool enabled);
+
+// Sandbox checkpoint: location and facing, restored on the next Sandbox launch.
+bool PGSandboxSaveAvailable(void);
+bool PGSandboxSaveRequest(void);
+// 0 idle, 1 pending, 2 saved, 3 unavailable, 4 failed.
+uint32_t PGSandboxSaveStatus(void);

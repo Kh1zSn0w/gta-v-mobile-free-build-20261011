@@ -21,6 +21,7 @@ final class TrainerViewController: UIViewController, UITableViewDataSource, UITa
     private var lastAvailable: [Bool] = []
     private let actions: [[TrainerAction]] = [
         [
+            .init(command: 182, title: "Save Sandbox location", detail: "Save your current location and facing. Resume here next time you launch Sandbox, on foot.", badge: "SAVE"),
             .init(command: 1, title: "Health & armor", detail: "Restore health and armor.", badge: "RESTORE"),
             .init(command: 2, title: "Weapon loadout", detail: "Equip weapons and ammunition.", badge: "EQUIP"),
             .init(command: 5, title: "Invincibility", detail: "Protect yourself from damage.", badge: "TOGGLE"),
@@ -163,6 +164,10 @@ final class TrainerViewController: UIViewController, UITableViewDataSource, UITa
     }
     private func isToggle(_ command: UInt32) -> Bool { command == 5 || (16...24).contains(command) || command == 30 }
     private func toggleOn(_ command: UInt32) -> Bool { command == 5 ? PGTrainerInvincible() : PGTrainerToggleState(command) }
+    private func available(_ command: UInt32) -> Bool {
+        if command == 182 { return PGSandboxSaveAvailable() }
+        return command == 0 ? PGTrainerReady() : PGTrainerCommandAvailable(command)
+    }
 
     override func viewDidLoad() {
         super.viewDidLoad()
@@ -263,9 +268,9 @@ final class TrainerViewController: UIViewController, UITableViewDataSource, UITa
         availability.text = ready ? "GAME LIVE · Tools available" : "Tools unlock when the player is ready and the game menu is closed."
         availability.numberOfLines = 0
         if let pending {
-            switch PGTrainerStatus() {
+            switch pending.command == 182 ? PGSandboxSaveStatus() : PGTrainerStatus() {
             case 2:
-                status.text = "Handed to game · \(pending.title)"
+                status.text = pending.command == 182 ? "Sandbox saved · Resume here next launch." : "Handed to game · \(pending.title)"
                 status.textColor = LauncherStyle.accent
                 self.pending = nil
                 table.reloadData()
@@ -283,7 +288,7 @@ final class TrainerViewController: UIViewController, UITableViewDataSource, UITa
                 }
             }
         }
-        let available = visibleActions.map { $0.command == 0 ? ready : PGTrainerCommandAvailable($0.command) }
+        let available = visibleActions.map { self.available($0.command) }
         if available != lastAvailable { lastAvailable = available; table.reloadData() }
         if ready != lastReady || invincible != lastInvincible || toggles != lastToggles {
             lastToggles = toggles
@@ -294,7 +299,7 @@ final class TrainerViewController: UIViewController, UITableViewDataSource, UITa
     }
     func tableView(_ tableView: UITableView, numberOfRowsInSection section: Int) -> Int { visibleActions.count }
     func tableView(_ tableView: UITableView, titleForFooterInSection section: Int) -> String? {
-        "Session-only tools. Powers reset on death or character change. Vehicle models need included assets and clear space; aircraft need room, boats need water. Skin swaps need Sandbox, on foot, in a compatible free-roam scene. Clothing choices depend on the character. Snow depends on the game’s weather assets. Cheats can affect achievements."
+        "Save Sandbox location persists your position and facing between launches, with backup checkpoints. It resumes on foot and leaves Story saves alone. Other tools affect this session. Powers reset on death or character change. Character swaps need Sandbox on foot. Clothing and vehicle choices depend on included game assets."
     }
     func tableView(_ tableView: UITableView, cellForRowAt indexPath: IndexPath) -> UITableViewCell {
         let action = visibleActions[indexPath.row]
@@ -324,7 +329,7 @@ final class TrainerViewController: UIViewController, UITableViewDataSource, UITa
         cell.accessibilityLabel = action.title
         cell.accessibilityValue = isToggle(action.command) ? badge.text : action.detail
         cell.accessibilityTraits = .button
-        let enabled = (action.command == 0 ? PGTrainerReady() : PGTrainerCommandAvailable(action.command)) && pending == nil
+        let enabled = available(action.command) && pending == nil
         cell.isUserInteractionEnabled = enabled
         cell.contentView.alpha = enabled ? 1 : 0.45
         badge.alpha = enabled ? 1 : 0.45
@@ -340,7 +345,8 @@ final class TrainerViewController: UIViewController, UITableViewDataSource, UITa
             navigationController?.pushViewController(OutfitEditorViewController(), animated: true)
             return
         }
-        guard PGTrainerCommandAvailable(action.command), PGTrainerRequest(action.command) else {
+        let submitted = available(action.command) && (action.command == 182 ? PGSandboxSaveRequest() : PGTrainerRequest(action.command))
+        guard submitted else {
             status.text = "Trainer unavailable. Return to free roam and try again."
             status.textColor = LauncherStyle.secondary
             return

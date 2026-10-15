@@ -29,7 +29,7 @@ final class PreviewController: UIViewController {
             home.topAnchor.constraint(equalTo: view.topAnchor),
             home.bottomAnchor.constraint(equalTo: view.bottomAnchor)
         ])
-        home.setDetail("Balanced · 30 FPS · 100% resolution", for: .graphics)
+        home.setDetail("Balanced · 60 FPS · 100% resolution", for: .graphics)
         home.setDetail("Swipe camera, sensitivity and aim", for: .controls)
         home.setDetail("Gyro aiming and tilt steering", for: .motion)
         home.setDetail("Downloaded locally", for: .files)

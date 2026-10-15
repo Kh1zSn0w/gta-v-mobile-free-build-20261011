@@ -85,6 +85,29 @@ final class GameSettings {
         get { defaults.object(forKey: "lookSensitivity") as? Double ?? 1.0 }
         set { defaults.set(min(max(newValue, 0.3), 12), forKey: "lookSensitivity") }
     }
+    var drivingLookSensitivity: Double {
+        get { defaults.object(forKey: "drivingLookSensitivity") as? Double ?? lookSensitivity }
+        set { defaults.set(min(max(newValue, 0.3), 12), forKey: "drivingLookSensitivity") }
+    }
+
+    // Normalized safe-area coordinates keep layouts usable after rotation or an update.
+    func controlPosition(_ name: String, context: String) -> (Double, Double)? {
+        guard let values = defaults.dictionary(forKey: "touchLayout.\(context)")?[name] as? [Double],
+              values.count == 2, values.allSatisfy({ $0.isFinite && (0...1).contains($0) }) else { return nil }
+        return (values[0], values[1])
+    }
+    func setControlPosition(_ name: String, context: String, x: Double, y: Double) {
+        guard x.isFinite, y.isFinite else { return }
+        var positions = defaults.dictionary(forKey: "touchLayout.\(context)") ?? [:]
+        positions[name] = [min(1, max(0, x)), min(1, max(0, y))]
+        defaults.set(positions, forKey: "touchLayout.\(context)")
+    }
+    func resetControlPositions() {
+        for context in ["onFoot", "car", "bike", "bicycle", "boat", "sub", "heli", "plane", "menu"] {
+            defaults.removeObject(forKey: "touchLayout.\(context)")
+        }
+    }
+
     /// Camera speed while aiming (the game slows the camera when aiming).
     var aimSensitivity: Double {
         get { defaults.object(forKey: "aimSensitivity") as? Double ?? 1.3 }
@@ -99,8 +122,8 @@ final class GameSettings {
     /// GTA's targeting preference: 0 traditional lock, 1 assisted aim,
     /// 2 assisted free aim, 3 free aim. Touch play defaults to assisted.
     var targetingMode: Int {
-        get { defaults.object(forKey: "targetingMode") as? Int ?? 1 }
-        set { defaults.set(newValue, forKey: "targetingMode") }
+        get { min(3, max(0, defaults.object(forKey: "targetingMode") as? Int ?? 1)) }
+        set { defaults.set(min(3, max(0, newValue)), forKey: "targetingMode") }
     }
     static let targetingTitles = ["Traditional lock-on", "Assisted aim", "Assisted free aim", "Free aim"]
 
@@ -132,17 +155,18 @@ final class GameSettings {
     }
     // Retain the original key for existing 30/60 FPS preferences and older builds.
     var sixtyFPS: Bool {
-        get { defaults.bool(forKey: "sixtyFPS") }
+        get { defaults.object(forKey: "sixtyFPS") as? Bool ?? true }
         set { defaults.set(newValue, forKey: "sixtyFPS") }
     }
     var frameRateOption: FrameRateOption {
         get {
-            (defaults.object(forKey: "frameRateOption") as? Int).flatMap(FrameRateOption.init)
-                ?? (sixtyFPS ? .fps60 : .fps30)
+            let saved = (defaults.object(forKey: "frameRateOption") as? Int).flatMap(FrameRateOption.init)
+            // This personal build retires the old 30 FPS target, including existing installs.
+            return saved == .fps120 ? .fps120 : .fps60
         }
         set {
-            defaults.set(newValue.rawValue, forKey: "frameRateOption")
-            sixtyFPS = newValue != .fps30
+            defaults.set(max(60, newValue.rawValue), forKey: "frameRateOption")
+            sixtyFPS = true
         }
     }
 

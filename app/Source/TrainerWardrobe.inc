@@ -34,6 +34,10 @@ static uint32_t wardrobePendingModel;
 static uint64_t wardrobePendingPed;
 static double wardrobeDeadline;
 static bool wardrobeSwapped;
+static _Thread_local bool wardrobePreloadedSwap;
+static uint32_t wardrobeReleaseModel;
+
+bool pg_wardrobe_preloaded_swap(void) { return wardrobePreloadedSwap; }
 typedef struct { int32_t drawable, texture; } PGWardrobePiece;
 static PGWardrobePiece wardrobeSaved[15];
 static uint32_t wardrobeSavedModel;
@@ -131,18 +135,27 @@ static bool pg_wardrobe_begin_skin(w2c_game *instance,uint32_t command,uint64_t 
     return true;
 }
 static bool pg_wardrobe_loading(w2c_game *instance,bool ready,uint64_t ped,double now) {
+    if (ready && wardrobeReleaseModel) {
+        w2c_game_f60327(instance,wardrobeReleaseModel);
+        wardrobeReleaseModel=0;
+    }
     if (!wardrobePendingModel) return false;
-    if (!ready) return true; // The model request is released when a safe scene resumes.
     uint32_t result=PG_TRAINER_PENDING;
     if (now>wardrobeDeadline || (!wardrobeSwapped && (ped!=wardrobePendingPed || !atomic_load(&wardrobeSkinReady)))) result=PG_TRAINER_EXPIRED;
+    else if (!ready) return true;
     else if (!wardrobeSwapped && w2c_game_f60324(instance,wardrobePendingModel)) {
         pg_trainer_reset(instance,w2c_game_f58714(instance));
+        // The requested model is resident. A synchronous streaming flush here
+        // can wait on the scheduler callback currently executing this request.
+        wardrobePreloadedSwap=true;
         w2c_game_f58625(instance,w2c_game_f58714(instance),wardrobePendingModel);
+        wardrobePreloadedSwap=false;
         wardrobeSwapped=true;
         return true; // Resolve the new ped handle next update; never use the old one.
     } else if (wardrobeSwapped && w2c_game_f50040(instance,w2c_game_f58715(instance))==wardrobePendingModel) result=PG_TRAINER_HANDLED;
     if (result!=PG_TRAINER_PENDING) {
-        w2c_game_f60327(instance,wardrobePendingModel);
+        if (ready) w2c_game_f60327(instance,wardrobePendingModel);
+        else wardrobeReleaseModel=wardrobePendingModel;
         if (result==PG_TRAINER_HANDLED && atomic_load(&trainerQueue.command)==115) wardrobeOriginalModel=0;
         wardrobePendingModel=0; wardrobeNextRefresh=0;
         atomic_store(&trainerQueue.status,result); atomic_store(&trainerQueue.command,0);

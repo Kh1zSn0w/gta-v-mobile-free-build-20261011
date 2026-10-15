@@ -359,14 +359,15 @@ static void pumpAssetHints(void){
     uint64_t size=[assetFiles[hint.id][1] unsignedLongLongValue];if(hint.offset>=size)continue;
     hint.length=(uint32_t)MIN((uint64_t)hint.length,size-hint.offset);
     NSString *base=[packedRoot stringByAppendingPathComponent:[NSString stringWithFormat:@"%u",hint.id]];
-    if(pg_packed_present_bytes([base stringByAppendingString:@".data"].fileSystemRepresentation,[base stringByAppendingString:@".map"].fileSystemRepresentation,size,hint.offset,hint.length)==hint.length){
+    bool warmed=false;
+    if(pg_asset_read_hint(&assetReadHandles,hint.id,
+        [base stringByAppendingString:@".data"].fileSystemRepresentation,
+        [base stringByAppendingString:@".map"].fileSystemRepresentation,size,hint.offset,hint.length,
+        !hint.speculative,&warmed)){
       hintsCached++;
       // Downloaded means on disk, not resident in the filesystem page cache.
       // Let the kernel warm the next useful range without copying whole archives.
-      if(!hint.speculative && pg_asset_read_warm(&assetReadHandles,hint.id,
-          [base stringByAppendingString:@".data"].fileSystemRepresentation,
-          [base stringByAppendingString:@".map"].fileSystemRepresentation,size,hint.offset,hint.length))
-        atomic_fetch_add(&assetWarmHints,1);
+      if(warmed)atomic_fetch_add(&assetWarmHints,1);
       continue;
     }
     PGAssetHint job=hint;atomic_fetch_add(&activePrefetch,1);if(job.speculative)atomic_fetch_add(&activeSpeculative,1);hintsScheduled++;
