@@ -9,7 +9,7 @@ on:
 permissions:
   contents: read
 concurrency:
-  group: personal-native-build
+  group: ${{ inputs.verify_only && 'personal-ui-verification' || 'personal-native-build' }}
   cancel-in-progress: false
 jobs:
   preview:
