@@ -102,3 +102,9 @@ enum GameFolder {
     static let isChosen = false
     static let testMapAvailable = false
 }
+
+final class KeyboardMouse {
+    static let shared = KeyboardMouse()
+    func releaseAll() {}
+}
+func PGSetRadioWheelDirection(_ x: Float, _ y: Float, _ active: Bool) {}
