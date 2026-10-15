@@ -1,6 +1,11 @@
 name: Free personal iPhone build
 on:
   workflow_dispatch:
+    inputs:
+      verify_only:
+        description: Run simulator verification without recompiling the unchanged native app
+        type: boolean
+        default: false
 permissions:
   contents: read
 concurrency:
@@ -35,6 +40,7 @@ jobs:
           if-no-files-found: ignore
           retention-days: 3
   native:
+    if: ${{ !inputs.verify_only }}
     runs-on: macos-15
     timeout-minutes: 90
     steps:

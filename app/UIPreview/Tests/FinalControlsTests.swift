@@ -32,8 +32,10 @@ final class FinalControlsTests: XCTestCase {
             XCTAssertTrue(app.buttons["launcher.settings.Controls"].waitForExistence(timeout: 10))
             app.buttons["launcher.settings.Controls"].tap()
             let editor = app.descendants(matching: .any).matching(identifier: "controls.edit-layout").firstMatch
-            for _ in 0..<5 where !editor.isHittable { app.swipeUp() }
-            XCTAssertTrue(editor.isHittable)
+            XCTAssertTrue(editor.waitForExistence(timeout: 5))
+            for _ in 0..<5 where !editor.isHittable { app.tables.firstMatch.swipeUp() }
+            // XCTest can scroll a table cell into view when tapping. A global
+            // application swipe may instead move the surrounding sheet.
             editor.tap()
             XCTAssertTrue(app.buttons["controls.layout-reset"].waitForExistence(timeout: 5))
         }
