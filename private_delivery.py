@@ -1,5 +1,6 @@
 """Send personal native build outputs to the owner's private repository only."""
 import json
+import plistlib
 import os
 from pathlib import Path
 import urllib.parse
@@ -18,9 +19,14 @@ assert api('/repos/' + private)['private'], 'Native output destination must rema
 run_id = os.environ['GITHUB_RUN_ID']
 sha = os.environ['GITHUB_SHA']
 result = os.environ['BUILD_RESULT']
-configuration = json.loads(Path('build-delivery.json').read_text())
-version = configuration['version']
-private_sha = configuration['private_source_sha']
+if os.environ['GITHUB_REPOSITORY'].lower() == private.lower():
+    with Path('app/App/Info.plist').open('rb') as stream:
+        version = plistlib.load(stream)['CFBundleShortVersionString']
+    private_sha = sha
+else:
+    configuration = json.loads(Path('build-delivery.json').read_text())
+    version = configuration['version']
+    private_sha = configuration['private_source_sha']
 run_url = 'https://github.com/' + os.environ['GITHUB_REPOSITORY'] + '/actions/runs/' + run_id
 release = api('/repos/' + private + '/releases', {
     'tag_name': 'personal-v' + version + '-free-build-' + run_id,

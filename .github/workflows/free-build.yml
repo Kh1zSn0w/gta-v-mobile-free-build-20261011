@@ -37,6 +37,8 @@ jobs:
           if-no-files-found: ignore
           retention-days: 7
   native:
+    permissions:
+      contents: write
     if: ${{ !inputs.verify_only }}
     runs-on: macos-15
     timeout-minutes: 120
@@ -58,6 +60,6 @@ jobs:
       - name: Deliver app and diagnostics to the private repository
         if: always()
         env:
-          PRIVATE_DELIVERY_TOKEN: ${{ secrets.PRIVATE_DELIVERY_TOKEN }}
+          PRIVATE_DELIVERY_TOKEN: ${{ secrets.PRIVATE_DELIVERY_TOKEN || github.token }}
           BUILD_RESULT: ${{ job.status }}
         run: python3 private_delivery.py
