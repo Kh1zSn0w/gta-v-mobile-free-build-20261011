@@ -1,13 +1,18 @@
 name: Free personal iPhone build
 on:
   workflow_dispatch:
+    inputs:
+      controls_only:
+        type: boolean
+        default: false
 permissions:
   contents: read
 concurrency:
-  group: upstream-v144-custom-build
+  group: ${{ inputs.controls_only && 'upstream-v144-controls-check' || 'upstream-v144-custom-build' }}
   cancel-in-progress: true
 jobs:
   native:
+    if: ${{ !inputs.controls_only }}
     runs-on: macos-15
     timeout-minutes: 120
     steps:
