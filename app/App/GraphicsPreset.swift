@@ -1,29 +1,35 @@
 import Foundation
 
+/// Graphics presets. The engine reads quality settings once at boot; only the
+/// resolution can change while it runs.
+/// Ultra Performance (the Lite mode) sits below Battery (raw value -1, so the saved values of the
+/// others stay as they were).
 enum GraphicsPreset: Int, CaseIterable {
-    // Keep persisted values stable when adding presets.
-    case battery = 0, performance = 1, balanced = 2, quality = 3, ultra = 4, extreme = 5
+    case lite = -1, battery = 0, performance = 1, balanced = 2, quality = 3, ultra = 4, extreme = 5, max = 6
 
-    static let displayOrder: [GraphicsPreset] = [.battery, .performance, .extreme, .balanced, .quality, .ultra]
-    var title: String { ["Battery", "Performance", "Balanced", "Quality", "Ultra", "Extreme"][rawValue] }
-    var height: Int { [432, 540, 720, 900, 1080, 720][rawValue] }
-    var processBudgetMB: UInt32 { self == .extreme ? 8192 : 0 }
+    /// Ultra Performance: Battery's options, plus half-size textures and a thinner, shorter-range world
+    /// (PG_LITE), for phones whose app limit is about 2-2.5 GB. PG_LITE_PRESET=0 hides it (comparisons).
+    static let liteAvailable: Bool = ProcessInfo.processInfo.environment["PG_LITE_PRESET"] != "0"
+    /// The presets Settings offers, lowest first.
+    static var available: [GraphicsPreset] { allCases.filter { $0 != .lite || liteAvailable } }
+
+    var title: String { [AppLanguage.choose("Ultra Performance"), AppLanguage.choose("Battery"), AppLanguage.choose("Performance"), AppLanguage.choose("Balanced"), AppLanguage.choose("Quality"), AppLanguage.choose("Ultra"), "Extreme", AppLanguage.choose("Max")][rawValue + 1] }
+    /// Render height in pixels; width follows the screen's shape.
+    var height: Int { [432, 432, 540, 720, 900, 1080, 720, 1290][rawValue + 1] }
     var detail: String {
-        ["Lowest load, longest play time", "Lower GPU load and memory use", "Sharper image and shadows",
-         "Higher detail textures, effects and draw distance", "Highest settings this port supports",
-         "High-detail 720p for 12 GB devices; up to 8 GB if iOS permits"][rawValue]
+        [AppLanguage.choose("For iPhones with little memory: lower detail and draw distance, so the world keeps loading"),
+         AppLanguage.choose("Lowest load, longest play time"), AppLanguage.choose("Today's tested setup for 6 GB iPhones"), AppLanguage.choose("Sharper image and shadows"),
+         AppLanguage.choose("Higher detail textures, effects and draw distance"), AppLanguage.choose("1080p with high shaders, shadows and reflections"),
+         "High-detail 720p; memory use stays within the iOS allowance",
+         AppLanguage.choose("Near-native resolution, high textures and full draw distance (newest Pro phones)")][rawValue + 1]
     }
 
-    // Total physical RAM is not the app's Jetsam allowance. Keep 720p while
-    // avoiding the high-texture profile when this install has less headroom.
-    func resourcePreset(memoryLimitMB: Int) -> GraphicsPreset {
-        self == .extreme && memoryLimitMB < 5000 ? .balanced : self
-    }
-
-    // Keep unsupported MSAA, tessellation and depth of field disabled.
+    /// Engine command-line options. Shader quality never goes below 1 (the
+    /// low shader set is mostly missing), and tessellation, MSAA and depth of
+    /// field stay off because their shaders do not run on Metal here.
     var engineOptions: [String] {
         switch self {
-        case .battery, .performance:
+        case .lite, .battery, .performance:
             return ["-shaderQuality=1", "-textureQuality=0", "-shadowQuality=-1", "-reflectionQuality=0", "-particleQuality=0",
                     "-grassQuality=0", "-cityDensity=0", "-lodScale=0", "-pedLodBias=0", "-vehicleLodBias=0", "-pedVariety=0", "-vehicleVariety=0"]
         case .balanced:
@@ -41,6 +47,9 @@ enum GraphicsPreset: Int, CaseIterable {
             return ["-shaderQuality=1", "-textureQuality=1", "-shadowQuality=0", "-reflectionQuality=1", "-particleQuality=1",
                     "-grassQuality=1", "-cityDensity=0.4", "-lodScale=0.6", "-pedLodBias=0.3", "-vehicleLodBias=0.3",
                     "-pedVariety=0.4", "-vehicleVariety=0.4", "-percentageForStreamer=0.80"]
+        case .max:
+            return ["-shaderQuality=2", "-textureQuality=2", "-shadowQuality=2", "-reflectionQuality=2", "-particleQuality=2",
+                    "-grassQuality=2", "-cityDensity=1", "-lodScale=1", "-pedLodBias=0.6", "-vehicleLodBias=0.6", "-pedVariety=0.8", "-vehicleVariety=0.8"]
         }
     }
 }

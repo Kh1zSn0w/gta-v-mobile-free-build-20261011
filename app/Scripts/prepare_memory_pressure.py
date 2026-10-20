@@ -1,10 +1,16 @@
 """Hook the pinned engine's available-memory query into the native host budget."""
 from pathlib import Path
+from engine_names import fn
 root=Path(__file__).resolve().parents[1]
-p=root/'Generated/game_15.c'
+def source(head):
+    for path in sorted((root/'Generated').glob('game_*.c')):
+        if head in path.read_text():return path
+    raise RuntimeError('Pinned function not found: '+head)
+head='u64 w2c_game_f%d(w2c_game* instance) {'%fn('rage::sysMemTotalFreeMemory()')
+p=source(head)
 s=p.read_text()
-start=s.index('u64 w2c_game_f2935(w2c_game* instance) {')
-end=s.index('\nvoid w2c_game_f2936(',start)
+start=s.index(head)
+end=s.index('\n}\n',start)
 f=s[start:end]
 old='  FUNC_EPILOGUE;\n  return var_j0;'
 new='  var_j0 = pg_streaming_available_memory(var_j0);\n'+old
@@ -19,10 +25,11 @@ if p.read_text()!=s:p.write_text(s)
 
 # The streaming allocator also has a separate video/resource budget. Its
 # ordinary path can bypass the system-memory query above; clamp both answers.
-p=root/'Generated/game_63.c'
+head='u64 w2c_game_f%d(w2c_game* instance, u64 var_p0) {'%fn('rage::grcResourceCache::GetStreamingMemory() const')
+p=source(head)
 s=p.read_text()
-start=s.index('u64 w2c_game_f9976(w2c_game* instance, u64 var_p0) {')
-end=s.index('\nu64 w2c_game_f9977(',start)
+start=s.index(head)
+end=s.index('\n}\n',start)
 f=s[start:end]
 # This query is a signed remaining budget: a negative answer requests eviction.
 f=f.replace('pg_streaming_available_memory(var_j0)', 'pg_streaming_resource_memory(var_j0)')
