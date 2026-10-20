@@ -172,7 +172,11 @@ extension TouchControlsView {
     updateVisibility()
     layoutIfNeeded()
     planeThrottle = 1
+    // Incoming calls keep flight controls; opening the phone dock releases them.
     updateGameState(2)
+    layoutIfNeeded()
+    assert(planeThrottle == 1 && rightStick.idleOrigin != nil && planeStickEnabled)
+    press(phone, id: ObjectIdentifier(finger), at: phone.center)
     layoutIfNeeded()
     assert(planeThrottle == 0 && rightStick.idleOrigin == nil)
     updateGameState(0)
