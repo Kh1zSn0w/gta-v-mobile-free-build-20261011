@@ -187,14 +187,6 @@ void PGAssetHealth(uint64_t out[6]);
 void PGStreamingHealth(uint64_t out[6]);		// NativeStreamingHealth.c (GTA-116)
 double PGGPUFrameMilliseconds(void);		// MRRenderer.mm
 
-// Custom trainer requests are consumed on the game's own cheat-update thread.
+// Personal audio and driving-camera preferences.
 void PGResetAudio(void);
-bool PGTrainerReady(void);
-bool PGTrainerRequest(uint32_t command);
-uint32_t PGTrainerStatus(void);
-bool PGTrainerInvincible(void);
-bool PGTrainerToggleState(uint32_t command);
-bool PGTrainerCommandAvailable(uint32_t command);
-void PGTrainerSelectClothingSlot(uint32_t slot);
-uint64_t PGTrainerClothingState(uint32_t slot);
 void PGSetVehicleCameraHold(bool enabled);

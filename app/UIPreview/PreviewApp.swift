@@ -38,26 +38,6 @@ final class PreviewController: UIViewController {
         home.downloadLabel.isHidden = false
         home.playButton.addAction(UIAction { [weak self] _ in self?.showPicker() }, for: .touchUpInside)
         home.openSection = { [weak self] section in self?.showSettings(section) }
-        if ProcessInfo.processInfo.arguments.contains(where: { $0.hasPrefix("--trainer-") && $0.hasSuffix("preview") }) {
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
-                let navigation = UINavigationController(rootViewController: TrainerViewController())
-                LauncherStyle.configure(navigation)
-                self.present(navigation, animated: false)
-                navigation.view.layoutIfNeeded()
-                func segment(in view: UIView) -> UISegmentedControl? {
-                    if let control = view as? UISegmentedControl { return control }
-                    return view.subviews.compactMap { segment(in: $0) }.first
-                }
-                let args = ProcessInfo.processInfo.arguments
-                if let control = segment(in: navigation.view) {
-                    if args.contains("--trainer-powers-preview") { control.selectedSegmentIndex = 1 }
-                    if args.contains("--trainer-vehicles-preview") { control.selectedSegmentIndex = 3 }
-                    if args.contains("--trainer-world-preview") { control.selectedSegmentIndex = 4 }
-                    if args.contains("--trainer-character-preview") { control.selectedSegmentIndex = 2 }
-                    control.sendActions(for: .valueChanged)
-                }
-            }
-        }
         if ProcessInfo.processInfo.arguments.contains("--mode-picker") {
             DispatchQueue.main.asyncAfter(deadline: .now() + 1) { self.showPicker() }
         }

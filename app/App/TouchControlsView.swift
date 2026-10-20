@@ -27,7 +27,7 @@ enum ControlStyle {
     static let accent = UIColor(red: 0.365, green: 0.714, blue: 0.898, alpha: 1)
     /// SF Symbols for controls that have no generated icon.
     static let fallbackSymbol: [String: String] = [
-        "trainer": "slider.horizontal.3", "radio": "radio", "mods": "puzzlepiece.extension.fill", "look_back": "arrow.uturn.backward", "up": "chevron.up", "down": "chevron.down",
+        "radio": "radio", "mods": "puzzlepiece.extension.fill", "look_back": "arrow.uturn.backward", "up": "chevron.up", "down": "chevron.down",
         "left": "chevron.left", "right": "chevron.right", "accept": "checkmark", "back": "arrow.uturn.left",
         "tab_left": "chevron.left.2", "tab_right": "chevron.right.2", "dive": "arrow.down.to.line",
         "surface": "arrow.up.to.line", "crouch": "figure.walk", "pedal": "bicycle",
@@ -260,7 +260,6 @@ final class TouchControlsView: UIView {
     /// The control selected in the layout editor (drawn with a highlight).
     weak var highlighted: ControlButton? { didSet { updateHighlight() } }
     var openSettings: (() -> Void)?
-    var openTrainer: (() -> Void)?
     /// A line for the log when the game state behind the situational buttons changes.
     var hintsChanged: ((String) -> Void)?
     private(set) var context = ControlContext.onFoot
@@ -447,7 +446,6 @@ final class TouchControlsView: UIView {
     private let camera = ControlButton("camera", icon: "camera", label: AppLanguage.choose("Change camera"))
     private let phone = ControlButton("phone", icon: "phone", label: AppLanguage.choose("Phone"))
     private let pause = ControlButton("pause", icon: "pause", label: AppLanguage.choose("Pause menu"))
-    private let trainer = ControlButton("trainer", icon: "trainer", label: "Trainer")
     private let settings = ControlButton("settings", icon: "settings", label: AppLanguage.choose("Settings"))
     /// Script mods (GTA-69): shown while one runs; opens the mod tray (ModKeysView).
     private let mods = ControlButton("mods", icon: "mods", label: AppLanguage.choose("Mods"))
@@ -547,7 +545,7 @@ final class TouchControlsView: UIView {
     private var allButtons: [ControlButton] {
         missionButtons.map(\.button) + [fire, aim, leftFire, jump, sprint, enter, weapons, reload, cover, crouch, switcher, special, interact, detonate, zoomIn, zoomOut,
          weaponPrev, weaponNext, gas, brake, handbrake, steerLeft, steerRight, driveBy, driveAim, duck, horn, lookBack,
-         vehicleWeapon, towHook, towArmUp, towArmDown, roof, detachTrailer, dive, surface, airFire, gear, throttleUp, throttleDown, yawLeft, yawRight, camera, phone, pause, trainer, settings, mods, lights, radio,
+         vehicleWeapon, towHook, towArmUp, towArmDown, roof, detachTrailer, dive, surface, airFire, gear, throttleUp, throttleDown, yawLeft, yawRight, camera, phone, pause, settings, mods, lights, radio,
          up, down, left, right, accept, back, phoneOption, taxiHurry, taxiStop, tabLeft, tabRight, promptOption, bothTriggers]
     }
     /// Refresh accessibility names for the active language without recreating controls.
@@ -650,7 +648,6 @@ final class TouchControlsView: UIView {
 
     private func computeVisible() -> [ControlButton] {
         var list = baseVisible()
-        if list.contains(settings) && context != .menu && !promptActive && !phoneDock { list.append(trainer) }
         if (modsActive || editing) && list.contains(settings) { list.append(mods) }
         if !editing { list += shownMissionButtons(besides: list) }
         let playing = !phoneDock && !promptActive && context != .menu
@@ -870,7 +867,7 @@ final class TouchControlsView: UIView {
         rightStick.idleOrigin = planeStickEnabled ? point(0.80, 0.60) : nil
 
         // Utility bar, top centre: rare actions in the hard-to-reach zone.
-        let order = [radio, lights, camera, phone, pause, trainer, settings, mods]
+        let order = [radio, lights, camera, phone, pause, settings, mods]
         let bar = order.filter { visible.contains($0) }
         for (i, button) in bar.enumerated() {
             let offset = (CGFloat(i) - CGFloat(bar.count - 1) / 2) * 54 * scale / safe.width
@@ -1110,8 +1107,6 @@ final class TouchControlsView: UIView {
             }
             lastDockInput = now
             updateVisibility()
-        case trainer:
-            DispatchQueue.main.async { self.openTrainer?() }
         case settings:
             DispatchQueue.main.async { self.openSettings?() }
         case mods:

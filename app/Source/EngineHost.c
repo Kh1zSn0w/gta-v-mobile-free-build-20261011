@@ -24,7 +24,6 @@ static void pg_mod_test_recheck(void);
 #include <os/proc.h>
 #include <mach/mach.h>
 #include "NativeMemoryBudget.h"
-#include "NativeTrainer.h"
 #include "NativeVehicleCamera.h"
 
 static struct w2c_env env;
@@ -2780,7 +2779,6 @@ int32_t PGLastInputDevice(void) {
   return atomic_load_explicit((const _Atomic int32_t *)(void *)((const uint8_t *)(void *)env.memory.data + 24627136), memory_order_relaxed);
 }
 
-#include "TrainerEngine.inc"
 
 static PGAudioPlayback audioPlayback;
 static _Atomic bool resetAudio;

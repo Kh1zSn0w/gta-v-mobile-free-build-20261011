@@ -4,7 +4,7 @@ cd "$(dirname "$0")/.."
 python3 Scripts/prepare_heap_diagnostics.py
 python3 Scripts/prepare_memory_pressure.py
 python3 Scripts/prepare_virtual_pad.py
-python3 Scripts/prepare_custom_trainer.py
+python3 Scripts/prepare_vehicle_camera.py
 python3 Scripts/prepare_movie_wait.py
 python3 Scripts/prepare_tv_without_video.py
 python3 Scripts/prepare_bink_queue.py

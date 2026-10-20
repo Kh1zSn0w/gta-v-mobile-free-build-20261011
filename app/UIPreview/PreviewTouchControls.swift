@@ -39,12 +39,6 @@ final class PreviewTouchController: UIViewController {
             result.centerXAnchor.constraint(equalTo: view.centerXAnchor),
             result.bottomAnchor.constraint(equalTo: view.safeAreaLayoutGuide.bottomAnchor, constant: -8)
         ])
-        controls.openTrainer = { [weak self] in
-            let navigation = UINavigationController(rootViewController: TrainerViewController())
-            LauncherStyle.configure(navigation)
-            navigation.sheetPresentationController?.detents = [.large()]
-            self?.present(navigation, animated: true)
-        }
         controls.inputChanged = { [weak self] in
             guard let self else { return }
             _ = self.controls.padState(elapsed: 1.0 / 60)
