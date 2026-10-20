@@ -75,7 +75,7 @@ final class NativePortViewController: UIViewController, MTKViewDelegate {
     private var audioSource: AVAudioSourceNode?
     private lazy var loadingPill: UILabel = {
         let label = PaddedLabel()
-        label.text = AppLanguage.choose("Loadingâ€¦")
+        label.text = AppLanguage.choose("Loading…")
         label.font = Theme.body(14, .semibold)
         label.textColor = .white
         label.backgroundColor = UIColor.black.withAlphaComponent(0.55)
@@ -151,7 +151,7 @@ final class NativePortViewController: UIViewController, MTKViewDelegate {
     private var padProof: PGPadState?
     /// Bumps when a new story-cheat sequence starts, so an older one stops writing the pad.
     private var storyCheatToken = 0
-    /// Cheats â€º Spawn vehicle and the cheat actions: the note at the top while the game carries one out.
+    /// Cheats › Spawn vehicle and the cheat actions: the note at the top while the game carries one out.
     private var vehicleSpawnTimer: Timer?
     private var vehicleSpawnNotice: UIView?
     private var lastGameStatus: UInt32 = 999
@@ -216,7 +216,7 @@ final class NativePortViewController: UIViewController, MTKViewDelegate {
         launchButton.configurationUpdateHandler = { [weak self] button in
             playStyle?(button)
             // Before Play is pressed a disabled button still says Play (files or mode missing).
-            let title = button.isEnabled || !(self?.engineStarted ?? false) ? AppLanguage.choose("Play") : button.title(for: .disabled) ?? AppLanguage.choose("Loadingâ€¦")
+            let title = button.isEnabled || !(self?.engineStarted ?? false) ? AppLanguage.choose("Play") : button.title(for: .disabled) ?? AppLanguage.choose("Loading…")
             var text = AttributedString(title)
             text.font = Theme.display(20, .heavy)
             text.foregroundColor = button.isEnabled ? UIColor(red: 0.16, green: 0.07, blue: 0.02, alpha: 1) : UIColor(white: 1, alpha: 0.7)
@@ -262,7 +262,7 @@ final class NativePortViewController: UIViewController, MTKViewDelegate {
         refreshModeChoice()
         home.translatesAutoresizingMaskIntoConstraints = false
         view.addSubview(home)
-        fpsLabel.text = "â€” FPS"
+        fpsLabel.text = "— FPS"
         fpsLabel.isHidden = true
         fpsLabel.font = .monospacedDigitSystemFont(ofSize: 12, weight: .semibold)
         fpsLabel.textColor = .white
@@ -301,7 +301,7 @@ final class NativePortViewController: UIViewController, MTKViewDelegate {
         // Script mods' keys (shows itself only while a script mod runs), above the touch controls.
         modKeys.translatesAutoresizingMaskIntoConstraints = false
         view.addSubview(modKeys)
-        // The ðŸ§© Mods control lives in the touch controls (it is placed and moved like the others); the
+        // The 🧩 Mods control lives in the touch controls (it is placed and moved like the others); the
         // tray it opens, the D-pad and the keyboard are ModKeysView.
         modKeys.activeChanged = { [weak self] active in self?.touchControls.modsActive = active }
         modKeys.anchor = { [weak self] in
@@ -369,7 +369,7 @@ final class NativePortViewController: UIViewController, MTKViewDelegate {
         appendLog("Native UIKit + Metal host. Engine compiled into the app; no WebView or JIT.")
         appendLog("Metal device: \(device?.name ?? "unavailable")")
         GameFolder.log = { [weak self] line in self?.appendLog(line) }
-        // A game folder moved into Files â€º On My iPhone â€º GTA V Port is found without any picking.
+        // A game folder moved into Files › On My iPhone › GTA V Port is found without any picking.
         lookForGameFiles()
         NotificationCenter.default.addObserver(self, selector: #selector(lookForGameFiles), name: UIApplication.didBecomeActiveNotification, object: nil)
         NotificationCenter.default.addObserver(self, selector: #selector(installChanged), name: .gameInstallChanged, object: nil)
@@ -459,10 +459,10 @@ final class NativePortViewController: UIViewController, MTKViewDelegate {
             let parts = line.split(separator: " ")
             if parts.count >= 3 {
                 let size = Double(parts[2]).map { String(format: "%.1f GB", $0 * 1048576 / 1_000_000_000) } ?? ""
-                launchButton.setTitle(AppLanguage.interpolate(AppLanguage.choose("Preparing assetsâ€¦ {arg0}% Â· {arg1}"), [String(parts[1]), size]), for: .disabled); launchButton.setNeedsUpdateConfiguration()
+                launchButton.setTitle(AppLanguage.interpolate(AppLanguage.choose("Preparing assets… {arg0}% · {arg1}"), [String(parts[1]), size]), for: .disabled); launchButton.setNeedsUpdateConfiguration()
             }
         }
-        if line == "ASSET_WARM_COMPLETE" { launchButton.setTitle(AppLanguage.choose("Loadingâ€¦"), for: .disabled); launchButton.setNeedsUpdateConfiguration() }
+        if line == "ASSET_WARM_COMPLETE" { launchButton.setTitle(AppLanguage.choose("Loading…"), for: .disabled); launchButton.setNeedsUpdateConfiguration() }
         if line == "WORLD_READY", ProcessInfo.processInfo.arguments.contains("--capture-world") {
             DispatchQueue.main.asyncAfter(deadline: .now() + 35) { PGCaptureNativeFrame("optimized-world") }
         }
@@ -623,7 +623,7 @@ final class NativePortViewController: UIViewController, MTKViewDelegate {
         appendLog("Device: " + GameSettings.shared.tier.summary)
         GameSettings.shared.markBootStarted()
         playIntro()
-        launchButton.setTitle(AppLanguage.choose("Loadingâ€¦"), for: .disabled); launchButton.setNeedsUpdateConfiguration()
+        launchButton.setTitle(AppLanguage.choose("Loading…"), for: .disabled); launchButton.setNeedsUpdateConfiguration()
         appendLog("Native touch controls support held buttons, sprint and weapon selection.")
         installModsForTest()
         noticeMods()
@@ -640,7 +640,7 @@ final class NativePortViewController: UIViewController, MTKViewDelegate {
         if GameFolder.isChosen {
             guard let data = GameFolder.open() else {
                 appendLog("The game folder on this iPhone can't be opened any more. Choose it again.")
-                showWhenFree(title: AppLanguage.choose("Game files not found"), message: AppLanguage.choose("The game folder was moved or deleted. Put it back in Files â€º On My iPhone â€º GTA V Port, or pick it again."))
+                showWhenFree(title: AppLanguage.choose("Game files not found"), message: AppLanguage.choose("The game folder was moved or deleted. Put it back in Files › On My iPhone › GTA V Port, or pick it again."))
                 GameFolder.clear(); updateServerStatus(); launchButton.isEnabled = true; launchButton.setTitle(AppLanguage.choose("Play"), for: .normal)
                 return
             }
@@ -914,7 +914,7 @@ final class NativePortViewController: UIViewController, MTKViewDelegate {
             }
             window.isHidden = false
             tvWindow = window
-            appendLog("TV connected (\(Int(tv.bounds.width * tv.scale))Ã—\(Int(tv.bounds.height * tv.scale))): the game shows on the TV, the controls stay on the phone.")
+            appendLog("TV connected (\(Int(tv.bounds.width * tv.scale))×\(Int(tv.bounds.height * tv.scale))): the game shows on the TV, the controls stay on the phone.")
         } else if let window = tvWindow {
             metalView.removeFromSuperview()
             view.insertSubview(metalView, at: 0)
@@ -933,7 +933,7 @@ final class NativePortViewController: UIViewController, MTKViewDelegate {
     @objc private func lookForGameFiles() {
         guard !engineStarted, !GameFolder.isChosen || GameFolder.inAppFolder, !lookingForGameFiles, !GameInstallManager.shared.isRunning else { return }
         lookingForGameFiles = true
-        if !GameFolder.isChosen { home.setFiles(.busy, title: AppLanguage.choose("Looking for your game filesâ€¦"), detail: "") }
+        if !GameFolder.isChosen { home.setFiles(.busy, title: AppLanguage.choose("Looking for your game files…"), detail: "") }
         DispatchQueue.global(qos: .userInitiated).async {
             GameFolder.findInAppFolder()
             DispatchQueue.main.async {
@@ -992,19 +992,19 @@ final class NativePortViewController: UIViewController, MTKViewDelegate {
             let problems = GameFolder.acceptedProblemCount
             home.setFiles(problems > 0 ? .attention : .ready, title: "\"\(GameFolder.name)\"",
                           detail: problems > 0
-                            ? AppLanguage.interpolate(problems == 1 ? AppLanguage.choose("{arg0} Â· 1 problem file, playing anyway") : AppLanguage.choose("{arg0} Â· {arg1} problem files, playing anyway"), [place, String(problems)])
-                            : AppLanguage.interpolate(AppLanguage.choose("{arg0} Â· every file checked"), [place]))
+                            ? AppLanguage.interpolate(problems == 1 ? AppLanguage.choose("{arg0} · 1 problem file, playing anyway") : AppLanguage.choose("{arg0} · {arg1} problem files, playing anyway"), [place, String(problems)])
+                            : AppLanguage.interpolate(AppLanguage.choose("{arg0} · every file checked"), [place]))
         } else if server.isEmpty, let report = GameFolder.appFolderReport {
             home.setFiles(.problem, title: report.explanation.title, detail: AppLanguage.choose("Found your game folder, but it can't be used yet. Tap to see why and how to fix it."))
         } else if server.isEmpty, !raw.isEmpty {
             home.setFiles(.problem, title: AppLanguage.choose("Server address isn't a web address"), detail: AppLanguage.choose("Tap to change it."))
         } else if server.isEmpty {
             home.setFiles(.attention, title: AppLanguage.choose("Add your game files"), detail: GameFolder.archivesFound.isEmpty ? AppLanguage.choose("Tap to find them on this iPhone, or get them from a link or an archive.") : AppLanguage.choose("Found a game archive. Tap to unpack it."))
-        } else if status == AppLanguage.choose("checkingâ€¦") {
+        } else if status == AppLanguage.choose("checking…") {
             home.setFiles(.busy, title: AppLanguage.choose("Streaming from your server"), detail: server)
         } else {
-            let ok = status == nil || status == AppLanguage.choose("connected âœ“")
-            home.setFiles(ok ? .ready : .problem, title: AppLanguage.choose("Streaming from your server"), detail: server + (status.map { " Â· " + $0 } ?? ""))
+            let ok = status == nil || status == AppLanguage.choose("connected ✓")
+            home.setFiles(ok ? .ready : .problem, title: AppLanguage.choose("Streaming from your server"), detail: server + (status.map { " · " + $0 } ?? ""))
         }
         updatePlayEnabled()
     }
@@ -1034,7 +1034,7 @@ final class NativePortViewController: UIViewController, MTKViewDelegate {
     }
 
     /// Simulator test: --install-mod <file> (repeatable) runs the in-app installer on each file before the
-    /// game starts, as if picked in Settings â€º Mods, and logs what it did.
+    /// game starts, as if picked in Settings › Mods, and logs what it did.
     private func installModsForTest() {
         #if targetEnvironment(simulator)
         let args = ProcessInfo.processInfo.arguments
@@ -1115,13 +1115,13 @@ final class NativePortViewController: UIViewController, MTKViewDelegate {
         guard let url = URL(string: server + "/data/manifest.json"), url.scheme?.hasPrefix("http") == true else {
             updateServerStatus(AppLanguage.choose("not a valid address")); return
         }
-        updateServerStatus(AppLanguage.choose("checkingâ€¦"))
+        updateServerStatus(AppLanguage.choose("checking…"))
         var request = URLRequest(url: url, timeoutInterval: 10)
         request.httpMethod = "HEAD"
         URLSession.shared.dataTask(with: request) { [weak self] _, response, error in
             let code = (response as? HTTPURLResponse)?.statusCode ?? 0
             DispatchQueue.main.async {
-                if code == 200 { self?.updateServerStatus(AppLanguage.choose("connected âœ“")) }
+                if code == 200 { self?.updateServerStatus(AppLanguage.choose("connected ✓")) }
                 else if let error { self?.updateServerStatus(AppLanguage.interpolate(AppLanguage.choose("can't connect ({arg0})"), [error.localizedDescription])) }
                 else { self?.updateServerStatus(AppLanguage.interpolate(AppLanguage.choose("answered {arg0}; is the address the folder with data/ and b/?"), [String(code)])) }
             }
@@ -1202,7 +1202,7 @@ final class NativePortViewController: UIViewController, MTKViewDelegate {
             if replay != lastReplayState { if replay == 1 { appendLog("Story: Mission failed screen") }; lastReplayState = replay }
         }
         playStats.health(fps: Double(PGRenderedFramesPerSecond()), thermal: ProcessInfo.processInfo.thermalState.rawValue, mission: story ? String(cString: name) : nil, failedScreen: replay == 1)
-        appendLog(String(format: "Health: memory %d MB used, %d MB free Â· guard stopped streaming growth %lluÃ—, asked to evict %lluÃ— Â· reads %llu (%.1f MB, avg %.1f ms, slow %llu, errors %llu) Â· %.0f FPS Â· thermal %@ Â· CPU %.2f cores Â· GPU %.1f ms Â· streaming %llu waiting (%llu over 10 s), loaded %llu (median %llu ms, 95%% %llu ms), unloaded %llu Â· at %.0f, %.0f, %.0f",
+        appendLog(String(format: "Health: memory %d MB used, %d MB free · guard stopped streaming growth %llu×, asked to evict %llu× · reads %llu (%.1f MB, avg %.1f ms, slow %llu, errors %llu) · %.0f FPS · thermal %@ · CPU %.2f cores · GPU %.1f ms · streaming %llu waiting (%llu over 10 s), loaded %llu (median %llu ms, 95%% %llu ms), unloaded %llu · at %.0f, %.0f, %.0f",
                          used, free, d[0], d[7], d[1], Double(d[2]) / 1_048_576, avgMS, d[5], d[3], PGRenderedFramesPerSecond(), thermal, cores, gpuMS, stream[0], stream[1], stream[2], stream[3], stream[4], stream[5], position.0, position.1, position.2))
     }
 
@@ -1321,7 +1321,7 @@ final class NativePortViewController: UIViewController, MTKViewDelegate {
         Theme.styleNavigation(navigation)
         present(navigation, animated: true)
     }
-    /// Cheats â€º Spawn vehicle: the game thread spawns it once play resumes (NativeVehicleSpawn.inc).
+    /// Cheats › Spawn vehicle: the game thread spawns it once play resumes (NativeVehicleSpawn.inc).
     private func spawnVehicle(_ vehicle: SpawnVehicle, enter: Bool) {
         guard PGSpawnVehicle(vehicle.model, enter) else {
             showWhenFree(title: AppLanguage.choose("Spawn vehicle"), message: AppLanguage.choose("A vehicle is already loading. Wait for it to finish."))
@@ -1341,7 +1341,7 @@ final class NativePortViewController: UIViewController, MTKViewDelegate {
             }
         }
     }
-    /// Cheats â€º repair, clean, time or weather: the game thread runs it once play resumes (NativeCheats.inc).
+    /// Cheats › repair, clean, time or weather: the game thread runs it once play resumes (NativeCheats.inc).
     private func performNativeCheat(_ action: NativeCheatAction) {
         guard PGQueueCheat(action.command, action.value) else {
             showWhenFree(title: AppLanguage.choose("Cheats"), message: AppLanguage.choose("A cheat is already pending. Wait for it to finish."))
@@ -1375,7 +1375,7 @@ final class NativePortViewController: UIViewController, MTKViewDelegate {
         label.font = Theme.body(16, .semibold)
         label.textAlignment = .center
         label.numberOfLines = 0
-        label.text = AppLanguage.interpolate(AppLanguage.choose("{arg0}: waiting for the gameâ€¦"), [title])
+        label.text = AppLanguage.interpolate(AppLanguage.choose("{arg0}: waiting for the game…"), [title])
         notice.addSubview(label)
         view.addSubview(notice)
         NSLayoutConstraint.activate([
@@ -1411,7 +1411,7 @@ final class NativePortViewController: UIViewController, MTKViewDelegate {
         let surface = tvWindow?.bounds.size ?? view.bounds.size
         let (width, height) = GraphicsConfiguration.size(for: bootedPreset, renderHeight: settings.renderHeight, screen: surface, matchScreenShape: tvWindow != nil || settings.matchScreenShape)
         PGSetBackBufferSize(Int32(width), Int32(height))
-        appendLog("Graphics: live resize to \(width)Ã—\(height)")
+        appendLog("Graphics: live resize to \(width)×\(height)")
     }
     @objc private func releaseTouchControls() {
         touchControls.reset(publish: false)
@@ -1482,7 +1482,7 @@ final class NativePortViewController: UIViewController, MTKViewDelegate {
         if now - lastFPSLabelUpdate >= 0.25 {
             if touchControlsAvailable { fpsLabel.isHidden = !GameSettings.shared.showFPS }
             let fps = PGRenderedFramesPerSecond()
-            fpsLabel.text = fps > 0 ? String(format: "%.0f FPS", fps) : "â€” FPS"
+            fpsLabel.text = fps > 0 ? String(format: "%.0f FPS", fps) : "— FPS"
             lastFPSLabelUpdate = now
         }
         let elapsed = lastControllerPoll.map { now - $0 } ?? (1.0 / 60.0)
@@ -1522,7 +1522,7 @@ final class NativePortViewController: UIViewController, MTKViewDelegate {
                 } else if presentationMs < callFrom {
                     presentationPill.text = AppLanguage.interpolate(AppLanguage.choose("Lifeinvader presentation {arg0} of {arg1}. The TV stays black (the game files have no TV videos). At {arg2} Jay Norris holds up the phone: then call him."), [time(presentationMs), time(presentationLength), time(callFrom)])
                 } else if presentationMs < callUntil {
-                    presentationPill.text = AppLanguage.interpolate(AppLanguage.choose("Call now: Jay Norris is holding up the phone. Phone â€º Contacts â€º Jay Norris, before {arg0} ({arg1} now)."), [time(callUntil), time(presentationMs)])
+                    presentationPill.text = AppLanguage.interpolate(AppLanguage.choose("Call now: Jay Norris is holding up the phone. Phone › Contacts › Jay Norris, before {arg0} ({arg1} now)."), [time(callUntil), time(presentationMs)])
                 } else {
                     presentationPill.text = AppLanguage.choose("Too late to call: the mission fails. Retry, and call Jay Norris between 1:17 and 2:50.")
                 }
@@ -1576,7 +1576,7 @@ final class NativePortViewController: UIViewController, MTKViewDelegate {
         } else if diagnosticsOverlay?.isHidden != true {
             controllerLabel.text = AppLanguage.choose("Touch controls ready")
         }
-        // With a controller connected the touch controls step aside (Settings â€º Touch controls).
+        // With a controller connected the touch controls step aside (Settings › Touch controls).
         // Keyboard and mouse: every frame while the game runs (keys go straight to the game as they change).
         let keyboardMouse = GameSettings.shared.keyboardMouse
         if engineStarted && keyboardMouse { KeyboardMouse.shared.send(focused: true) }

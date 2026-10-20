@@ -80,11 +80,11 @@ struct DeviceTier {
     /// Presets shown with a warning because they may run out of memory or heat up.
     func risky(_ preset: GraphicsPreset) -> Bool { preset.rawValue > recommended.rawValue }
     /// For the log (kept in English).
-    var summary: String { "\(model) Â· \(physicalMemoryMB / 1024) GB Â· app limit \(memoryLimitMB) MB\(supportsBCTextures ? " Â· BC textures" : "")" }
+    var summary: String { "\(model) · \(physicalMemoryMB / 1024) GB · app limit \(memoryLimitMB) MB\(supportsBCTextures ? " · BC textures" : "")" }
     /// The same line for Settings, in the app's language.
     var displaySummary: String {
-        AppLanguage.interpolate(AppLanguage.choose("{arg0} Â· {arg1} GB Â· app limit {arg2} MB"), [model, String(physicalMemoryMB / 1024), String(memoryLimitMB)])
-            + (supportsBCTextures ? " Â· " + AppLanguage.choose("BC textures") : "")
+        AppLanguage.interpolate(AppLanguage.choose("{arg0} · {arg1} GB · app limit {arg2} MB"), [model, String(physicalMemoryMB / 1024), String(memoryLimitMB)])
+            + (supportsBCTextures ? " · " + AppLanguage.choose("BC textures") : "")
     }
 
     /// Whether this install was signed with the increased memory limit (Apple grants it per
@@ -158,6 +158,6 @@ enum GraphicsConfiguration {
                 PGConfigureEngine($0, UInt32(buffer.count), Int32(width), Int32(height), settings.frameRateCap == 0 ? 0 : settings.frameRateCap == 60 ? 1 : 2)
             }
         }
-        return "\(preset.title) \(width)Ã—\(height) at \(GameSettings.frameRateTitle(settings.frameRateCap))" + (own.isEmpty ? "" : ", own settings: " + own.joined(separator: ", "))
+        return "\(preset.title) \(width)×\(height) at \(GameSettings.frameRateTitle(settings.frameRateCap))" + (own.isEmpty ? "" : ", own settings: " + own.joined(separator: ", "))
     }
 }

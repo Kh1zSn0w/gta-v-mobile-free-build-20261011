@@ -85,7 +85,7 @@ enum Theme {
         view.isUserInteractionEnabled = false
         return view
     }
-    /// Settings pages (and Cheats â€º Spawn vehicle): the dimmed art behind the rows, also behind a search bar.
+    /// Settings pages (and Cheats › Spawn vehicle): the dimmed art behind the rows, also behind a search bar.
     static func styleSettingsTable(_ table: UITableView) {
         table.backgroundColor = night
         table.backgroundView = dimmedBackdrop(image: "SettingsBackground")

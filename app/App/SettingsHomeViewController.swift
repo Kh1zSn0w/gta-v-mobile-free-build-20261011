@@ -44,7 +44,7 @@ final class SettingsHomeViewController: UITableViewController {
             }, sections: [.cheats]))
         }
         list.append(Category(icon: "globe", title: engineRunning ? AppLanguage.choose("Language") : AppLanguage.choose("Game mode and language"), summary: {
-            running ? AppLanguage.current.name : "\(settings.gameMode.title) Â· \(AppLanguage.current.name)"
+            running ? AppLanguage.current.name : "\(settings.gameMode.title) · \(AppLanguage.current.name)"
         }, sections: [.language, .mode]))
         if !engineRunning {
             list.append(Category(icon: "folder", title: AppLanguage.choose("Game files"), summary: {

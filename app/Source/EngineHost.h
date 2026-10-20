@@ -22,7 +22,7 @@ typedef struct {
 void PGConfigureEngine(const char *const *quality, unsigned count, int width, int height, int frameLimit);
 // Changes the frame limit while the game runs (0 off, 1 60 FPS, 2 30 FPS).
 void PGSetFrameLimit(int frameLimit);
-// Settings â€º Memory cap in MB (0 automatic); call before the engine starts.
+// Settings › Memory cap in MB (0 automatic); call before the engine starts.
 void PGSetMemoryCap(int mb);
 // Before PGStartEngine: 1 Story Mode (the release startup: continues the
 // newest save in /userdata/Documents, else a new game from the Prologue),
@@ -90,7 +90,7 @@ void PGDebugCommand(const char *command, char *reply, size_t size);
 void PGNextAircraftWeapon(void);
 /// Story cheat "Set money": the playing character's cash becomes `amount` at the next engine frame.
 void PGSetPlayerCash(int32_t amount);
-// Settings â€º Cheats (Source/NativeVehicleSpawn.inc, Source/NativeCheats.inc). The app only queues
+// Settings › Cheats (Source/NativeVehicleSpawn.inc, Source/NativeCheats.inc). The app only queues
 // requests and reads copies here; the game commands run on the game thread during the "main"
 // script's turn, never from UIKit or the controller thread.
 // One vehicle the game knows: its model name hash, class (0 compacts ... 20 commercial; trains are

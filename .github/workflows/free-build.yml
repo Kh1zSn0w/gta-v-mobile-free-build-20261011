@@ -17,7 +17,11 @@ jobs:
       - name: Check custom trainer camera audio memory and asset cache
         run: bash app/Scripts/check_interaction_audio.sh
       - name: Check airplane controls
-        run: bash app/Tests/run_airplane_controls.sh
+        run: |
+          DEVICE=$(xcrun simctl list devices available -j | python3 -c 'import json,sys; d=json.load(sys.stdin); print(next(x["udid"] for group in d["devices"].values() for x in group if x["name"].startswith("iPhone")))')
+          xcrun simctl boot "$DEVICE" || true
+          xcrun simctl bootstatus "$DEVICE" -b
+          bash app/Tests/run_airplane_controls.sh "$DEVICE"
       - name: Verify build inputs
         run: python3 app/Scripts/fetch_release_inputs.py
       - name: Install Metal compiler if required

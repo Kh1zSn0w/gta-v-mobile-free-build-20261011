@@ -15,11 +15,11 @@ final class SettingsViewController: UITableViewController {
     var targetingChanged: (() -> Void)?
     var gameModeChanged: (() -> Void)?
     var cheatSelected: ((StoryCheat) -> Void)?
-    /// Cheats â€º Set money: the amount the player typed.
+    /// Cheats › Set money: the amount the player typed.
     var moneyEntered: ((Int32) -> Void)?
-    /// Cheats â€º Spawn vehicle: the vehicle picked, and whether to get in.
+    /// Cheats › Spawn vehicle: the vehicle picked, and whether to get in.
     var vehicleSelected: ((SpawnVehicle, Bool) -> Void)?
-    /// Cheats â€º an action row (repair, time, weather...): run once Settings closes.
+    /// Cheats › an action row (repair, time, weather...): run once Settings closes.
     var nativeCheatSelected: ((NativeCheatAction) -> Void)?
 
     /// Cheats rows: Spawn vehicle, Set money, the NativeCheatGroup rows, then the controller story cheats.
@@ -104,7 +104,7 @@ final class SettingsViewController: UITableViewController {
                 self.tableView.scrollToRow(at: IndexPath(row: row, section: self.indexOf(section)), at: .middle, animated: false)
             }
         }
-        // Automation: --settings-section spawn goes on to Cheats â€º Spawn vehicle.
+        // Automation: --settings-section spawn goes on to Cheats › Spawn vehicle.
         if let i = arguments.firstIndex(of: "--settings-section"), i + 1 < arguments.count, arguments[i + 1] == "spawn",
            engineRunning, sections.contains(.cheats) {
             DispatchQueue.main.async { self.tableView(self.tableView, didSelectRowAt: IndexPath(row: 0, section: self.indexOf(.cheats))) }
@@ -219,8 +219,8 @@ final class SettingsViewController: UITableViewController {
         let presets = settings.tier.allowed
         switch sectionKind(indexPath.section) {
         case .mode where indexPath.row == importSaveRow:
-            content.text = AppLanguage.choose("Import a Story saveâ€¦")
-            content.secondaryText = AppLanguage.choose("A save file from a PC or a friend (named like SGTA50000). It goes into a free save slot; load it in the game: Pause â€º Game â€º Load Game.")
+            content.text = AppLanguage.choose("Import a Story save…")
+            content.secondaryText = AppLanguage.choose("A save file from a PC or a friend (named like SGTA50000). It goes into a free save slot; load it in the game: Pause › Game › Load Game.")
             content.image = UIImage(systemName: "square.and.arrow.down")
             content.textProperties.color = view.tintColor ?? .systemBlue
         case .mode where indexPath.row == GameMode.allCases.count:
@@ -251,7 +251,7 @@ final class SettingsViewController: UITableViewController {
             if graphicsRow < presets.count {
                 let preset = presets[graphicsRow]
                 content.text = preset.title + (preset == settings.tier.recommended ? AppLanguage.choose(" (recommended)") : "")
-                content.secondaryText = AppLanguage.interpolate(AppLanguage.choose("Detail level, default {arg0}p Â· "), [String(describing: preset.height)]) + preset.detail + (settings.tier.risky(preset) ? AppLanguage.choose("\nâš ï¸Ž Heavier than this phone's recommended setting: may run out of memory or overheat.") : "")
+                content.secondaryText = AppLanguage.interpolate(AppLanguage.choose("Detail level, default {arg0}p · "), [String(describing: preset.height)]) + preset.detail + (settings.tier.risky(preset) ? AppLanguage.choose("\n⚠︎ Heavier than this phone's recommended setting: may run out of memory or overheat.") : "")
                 if settings.tier.risky(preset) { content.secondaryTextProperties.color = .systemOrange }
                 cell.accessoryType = preset == settings.graphicsPreset ? .checkmark : .none
             } else {
@@ -259,9 +259,9 @@ final class SettingsViewController: UITableViewController {
                 cell.selectionStyle = .none
                 if row == 0 {
                     content.text = AppLanguage.choose("Resolution")
-                    content.secondaryText = currentSizeText() + AppLanguage.choose(" Â· changes right away")
+                    content.secondaryText = currentSizeText() + AppLanguage.choose(" · changes right away")
                     let button = UIButton(type: .system)
-                    button.setTitle(resolutionTitle(settings.renderHeight) + " â–¾", for: .normal)
+                    button.setTitle(resolutionTitle(settings.renderHeight) + " ▾", for: .normal)
                     button.showsMenuAsPrimaryAction = true
                     button.accessibilityLabel = AppLanguage.choose("Resolution")
                     let choices = [0] + GraphicsConfiguration.resolutionChoices
@@ -287,9 +287,9 @@ final class SettingsViewController: UITableViewController {
                     let presetValue = detail.presetValue(settings.graphicsPreset)
                     let own = settings.graphicsOverrides[detail.option]
                     content.text = detail.title
-                    content.secondaryText = own == nil ? AppLanguage.choose("As the preset Â· applies when you press Play") : AppLanguage.choose("Your own setting Â· applies when you press Play")
+                    content.secondaryText = own == nil ? AppLanguage.choose("As the preset · applies when you press Play") : AppLanguage.choose("Your own setting · applies when you press Play")
                     let button = UIButton(type: .system)
-                    button.setTitle((own.map(detail.name(of:)) ?? AppLanguage.interpolate(AppLanguage.choose("Preset ({arg0})"), [detail.name(of: presetValue)])) + " â–¾", for: .normal)
+                    button.setTitle((own.map(detail.name(of:)) ?? AppLanguage.interpolate(AppLanguage.choose("Preset ({arg0})"), [detail.name(of: presetValue)])) + " ▾", for: .normal)
                     button.showsMenuAsPrimaryAction = true
                     button.accessibilityLabel = detail.title
                     let presetChoice = UIAction(title: AppLanguage.interpolate(AppLanguage.choose("Preset ({arg0})"), [detail.name(of: presetValue)]), state: own == nil ? .on : .off) { [weak self] _ in
@@ -320,7 +320,7 @@ final class SettingsViewController: UITableViewController {
                     let limit = settings.tier.memoryLimitMB
                     let choices = [0] + [2560, 3072, 3584, 4096, 5120, 6144, 7168].filter { $0 < limit }
                     let button = UIButton(type: .system)
-                    button.setTitle(title(settings.memoryCapMB) + " â–¾", for: .normal)
+                    button.setTitle(title(settings.memoryCapMB) + " ▾", for: .normal)
                     button.showsMenuAsPrimaryAction = true
                     button.accessibilityLabel = AppLanguage.choose("Memory cap")
                     button.menu = UIMenu(children: choices.map { mb in
@@ -341,7 +341,7 @@ final class SettingsViewController: UITableViewController {
                     content.text = AppLanguage.choose("Frame rate")
                     content.secondaryText = AppLanguage.choose("Higher uses more power and heat; 30 FPS is steadiest. Unlocked goes up to 120 on ProMotion iPhones.")
                     let button = UIButton(type: .system)
-                    button.setTitle(GameSettings.frameRateTitle(settings.frameRateCap) + " â–¾", for: .normal)
+                    button.setTitle(GameSettings.frameRateTitle(settings.frameRateCap) + " ▾", for: .normal)
                     button.showsMenuAsPrimaryAction = true
                     button.accessibilityLabel = AppLanguage.choose("Frame rate")
                     button.menu = UIMenu(children: [30, 60, 0].map { cap in
@@ -490,7 +490,7 @@ final class SettingsViewController: UITableViewController {
                 content.text = AppLanguage.choose("Minimap")
                 content.secondaryText = AppLanguage.choose("Where the map sits. Changes apply the next time the game starts.")
                 let button = UIButton(type: .system)
-                button.setTitle(settings.minimapPlace.title + " â–¾", for: .normal)
+                button.setTitle(settings.minimapPlace.title + " ▾", for: .normal)
                 button.accessibilityLabel = AppLanguage.choose("Minimap")
                 button.showsMenuAsPrimaryAction = true
                 button.menu = UIMenu(children: GameSettings.MinimapPlace.allCases.map { place in
@@ -531,7 +531,7 @@ final class SettingsViewController: UITableViewController {
                 content.text = AppLanguage.choose("Input device (live test)")
                 let device = PGLastInputDevice()
                 let kind = device == -4 ? AppLanguage.choose("Mouse/keyboard") : (0...3).contains(device) ? AppLanguage.choose("Controller") : AppLanguage.choose("Unknown")
-                content.secondaryText = AppLanguage.interpolate(AppLanguage.choose("{arg0} [{arg1}] Â· Aim mode: {arg2}"), [kind, String(device), String(PGTargetingMode())])
+                content.secondaryText = AppLanguage.interpolate(AppLanguage.choose("{arg0} [{arg1}] · Aim mode: {arg2}"), [kind, String(device), String(PGTargetingMode())])
             }
         case .cheats where indexPath.row == 0:
             content.text = AppLanguage.choose("Spawn vehicle")
@@ -570,7 +570,7 @@ final class SettingsViewController: UITableViewController {
                 cell.accessoryView = button
                 cell.selectionStyle = .none
             } else if indexPath.row == aimRows + 1 {
-                content.text = AppLanguage.interpolate(AppLanguage.choose("Full lock at {arg0}Â°"), [String(describing: Int(settings.tiltFullLock))])
+                content.text = AppLanguage.interpolate(AppLanguage.choose("Full lock at {arg0}°"), [String(describing: Int(settings.tiltFullLock))])
                 cell.accessoryView = slider(settings.tiltFullLock, 10, 45, label: AppLanguage.choose("Tilt for full steering")) { [weak self] in self?.settings.tiltFullLock = $0.rounded() }
                 cell.selectionStyle = .none
             } else if indexPath.row == 0 {
@@ -589,7 +589,7 @@ final class SettingsViewController: UITableViewController {
                 cell.accessoryView = button
                 cell.selectionStyle = .none
             } else if indexPath.row == 1 {
-                content.text = String(format: AppLanguage.choose("Sensitivity %.1fÃ—"), settings.gyroSensitivity)
+                content.text = String(format: AppLanguage.choose("Sensitivity %.1f×"), settings.gyroSensitivity)
                 let slider = UISlider()
                 slider.minimumValue = 0.2; slider.maximumValue = 3
                 slider.value = Float(settings.gyroSensitivity)
@@ -599,7 +599,7 @@ final class SettingsViewController: UITableViewController {
                     guard let self, let slider else { return }
                     self.settings.gyroSensitivity = (Double(slider.value) * 10).rounded() / 10
                     var updated = cell.defaultContentConfiguration()
-                    updated.text = String(format: AppLanguage.choose("Sensitivity %.1fÃ—"), self.settings.gyroSensitivity)
+                    updated.text = String(format: AppLanguage.choose("Sensitivity %.1f×"), self.settings.gyroSensitivity)
                     cell.contentConfiguration = updated
                 }, for: .valueChanged)
                 cell.accessoryView = slider
@@ -616,7 +616,7 @@ final class SettingsViewController: UITableViewController {
             content.text = AppLanguage.choose("App language")
             content.secondaryText = AppLanguage.choose("Language for menus and settings")
             let button = UIButton(type: .system)
-            button.setTitle(AppLanguage.current.name + " â–¾", for: .normal)
+            button.setTitle(AppLanguage.current.name + " ▾", for: .normal)
             button.accessibilityLabel = AppLanguage.choose("App language")
             button.showsMenuAsPrimaryAction = true
             button.menu = UIMenu(children: AppLanguage.allCases.map { language in
@@ -796,10 +796,10 @@ final class SettingsViewController: UITableViewController {
 
     private func progressText() -> String {
         let percent = Int((preloader.fraction * 100).rounded(.down))
-        var text = AppLanguage.interpolate(AppLanguage.choose("{arg0}% Â· {arg1} of {arg2}"), [String(describing: percent), String(describing: AssetPreloader.format(preloader.cachedBytes)), String(describing: AssetPreloader.format(preloader.totalBytes))])
+        var text = AppLanguage.interpolate(AppLanguage.choose("{arg0}% · {arg1} of {arg2}"), [String(describing: percent), String(describing: AssetPreloader.format(preloader.cachedBytes)), String(describing: AssetPreloader.format(preloader.totalBytes))])
         if preloader.phase == .downloading {
-            if let rate = preloader.bytesPerSecond { text += " Â· \(AssetPreloader.format(UInt64(rate)))/s" }
-            if let seconds = preloader.secondsRemaining { text += " Â· " + AssetPreloader.formatDuration(seconds) }
+            if let rate = preloader.bytesPerSecond { text += " · \(AssetPreloader.format(UInt64(rate)))/s" }
+            if let seconds = preloader.secondsRemaining { text += " · " + AssetPreloader.formatDuration(seconds) }
         }
         return text
     }
@@ -816,7 +816,7 @@ final class SettingsViewController: UITableViewController {
                 content.textProperties.color = .secondaryLabel
             case .complete:
                 content.text = AppLanguage.choose("All files on device")
-                content.secondaryText = AppLanguage.interpolate(AppLanguage.choose("{arg0} Â· plays without streaming"), [String(describing: total)])
+                content.secondaryText = AppLanguage.interpolate(AppLanguage.choose("{arg0} · plays without streaming"), [String(describing: total)])
                 content.image = UIImage(systemName: "checkmark.circle.fill")
                 content.imageProperties.tintColor = Theme.ok
             case .downloading:
@@ -832,7 +832,7 @@ final class SettingsViewController: UITableViewController {
             content.text = AppLanguage.choose("Download all game files")
             content.textProperties.color = .tintColor
             if preloader.cachedBytes > 0 && preloader.measured {
-                content.secondaryText = AppLanguage.interpolate(AppLanguage.choose("{arg0} Â· {arg1} already on this iPhone"), [String(describing: total), String(describing: AssetPreloader.format(preloader.cachedBytes))])
+                content.secondaryText = AppLanguage.interpolate(AppLanguage.choose("{arg0} · {arg1} already on this iPhone"), [String(describing: total), String(describing: AssetPreloader.format(preloader.cachedBytes))])
             } else {
                 content.secondaryText = total
             }
@@ -852,7 +852,7 @@ final class SettingsViewController: UITableViewController {
             content.image = UIImage(systemName: "xmark.circle")
             content.imageProperties.tintColor = .systemRed
         case .remove:
-            content.text = preloader.removing ? AppLanguage.choose("Removing filesâ€¦") : AppLanguage.choose("Remove downloaded files")
+            content.text = preloader.removing ? AppLanguage.choose("Removing files…") : AppLanguage.choose("Remove downloaded files")
             content.secondaryText = engineRunning ? AppLanguage.choose("Available after restarting the app") : AppLanguage.interpolate(AppLanguage.choose("Frees {arg0}"), [String(describing: AssetPreloader.format(preloader.cachedBytes))])
             content.textProperties.color = engineRunning ? .secondaryLabel : .systemRed
             content.image = UIImage(systemName: "trash")
@@ -932,7 +932,7 @@ final class SettingsViewController: UITableViewController {
         let screen = view.window?.windowScene?.screen.bounds.size ?? UIScreen.main.bounds.size
         let (w, h) = GraphicsConfiguration.size(for: engineRunning ? bootPreset : settings.graphicsPreset, renderHeight: settings.renderHeight,
                                                 screen: screen, matchScreenShape: settings.matchScreenShape)
-        return AppLanguage.interpolate(AppLanguage.choose("Renders at {arg0}Ã—{arg1}"), [String(describing: w), String(describing: h)])
+        return AppLanguage.interpolate(AppLanguage.choose("Renders at {arg0}×{arg1}"), [String(describing: w), String(describing: h)])
     }
     /// Uploads the logs after the player confirms, with an optional note (its own screen, so the
     /// keyboard never covers Send in landscape).
@@ -978,7 +978,7 @@ final class SettingsViewController: UITableViewController {
         slider.value = Float(value)
         slider.accessibilityLabel = label
         let number = UILabel()
-        number.text = String(format: "%.1fÃ—", value)
+        number.text = String(format: "%.1f×", value)
         number.font = .monospacedDigitSystemFont(ofSize: 12, weight: .medium)
         number.textColor = .secondaryLabel
         number.textAlignment = .right
@@ -986,7 +986,7 @@ final class SettingsViewController: UITableViewController {
         slider.addAction(UIAction { [weak slider, weak number] _ in
             guard let slider else { return }
             let rounded = (Double(slider.value) * 10).rounded() / 10
-            number?.text = String(format: "%.1fÃ—", rounded)
+            number?.text = String(format: "%.1f×", rounded)
             changed(rounded)
         }, for: .valueChanged)
         view.addArrangedSubview(slider)
@@ -1028,7 +1028,7 @@ extension SettingsViewController {
         switch outcome {
         case let .imported(title, slot):
             alert = UIAlertController(title: AppLanguage.choose("Save imported"),
-                                      message: AppLanguage.interpolate(AppLanguage.choose("\"{arg0}\" is in save slot {arg1}. Start Story mode, then load it: Pause â€º Game â€º Load Game."), [title, String(slot)]),
+                                      message: AppLanguage.interpolate(AppLanguage.choose("\"{arg0}\" is in save slot {arg1}. Start Story mode, then load it: Pause › Game › Load Game."), [title, String(slot)]),
                                       preferredStyle: .alert)
         case let .failed(message):
             alert = UIAlertController(title: AppLanguage.choose("Couldn't import the save"), message: message, preferredStyle: .alert)

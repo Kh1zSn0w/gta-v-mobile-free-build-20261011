@@ -2526,9 +2526,9 @@ static bool setup() {
 	gASTCBC3 = gASTCBC1 && !(getenv("PG_ASTC_BC3") && atoi(getenv("PG_ASTC_BC3")) == 0);		// on since v1.4.4 (Kevin); PG_ASTC_BC3=0 turns it off
 	// Lite build (the app sets PG_LITE from its Info.plist); PG_LITE_TEXTURES=0 keeps textures whole there.
 	gSkipTopMip = getenv("PG_LITE") && strcmp(getenv("PG_LITE"), "0") && !(getenv("PG_LITE_TEXTURES") && !strcmp(getenv("PG_LITE_TEXTURES"), "0"));
-	// Textures of at least 512Ã—512 texels lose their largest level where BC is decoded, a quarter of their
-	// memory (GTA-122; simulator: GPU textures âˆ’16%).
-	// On by default since v1.4.3 at 512Ã—512 (Kevin, 2026-10-20); PG_BIG_MIP_SKIP=0 turns it off, another size changes it.
+	// Textures of at least 512×512 texels lose their largest level where BC is decoded, a quarter of their
+	// memory (GTA-122; simulator: GPU textures −16%).
+	// On by default since v1.4.3 at 512×512 (Kevin, 2026-10-20); PG_BIG_MIP_SKIP=0 turns it off, another size changes it.
 	{ const char *v = getenv("PG_BIG_MIP_SKIP"); long side = v ? atol(v) : 512; if (side >= 256 && side <= 8192 && !gNativeBC) gSkipBigTopMip = (uint64_t)side * side; }
 	R->borderColors = [R->device supportsFamily:MTLGPUFamilyApple7];
 	if (!loadShaderLibrary(R->device)) return false;

@@ -50,7 +50,7 @@ final class HomeView: UIView {
         title.adjustsFontSizeToFitWidth = true
         title.minimumScaleFactor = 0.7
         let subtitle = brandSubtitle
-        subtitle.text = AppLanguage.choose("Fan project Â· plays your own game files") + " Â· \(Theme.appVersion)"
+        subtitle.text = AppLanguage.choose("Fan project · plays your own game files") + " · \(Theme.appVersion)"
         subtitle.font = Theme.body(14, .medium)
         subtitle.textColor = Theme.secondaryText
         subtitle.numberOfLines = 2		// long translations keep the version visible
@@ -179,7 +179,7 @@ final class HomeView: UIView {
     private let secondary = UIStackView()
     func refreshLanguage() {
         brandTitle.text = AppLanguage.choose("GTA V Port")
-        brandSubtitle.text = AppLanguage.choose("Fan project Â· plays your own game files") + " Â· \(Theme.appVersion)"
+        brandSubtitle.text = AppLanguage.choose("Fan project · plays your own game files") + " · \(Theme.appVersion)"
         mapTitle.text = AppLanguage.choose("Map")
         playButton.configuration?.title = AppLanguage.choose("Play")
         // The top-right buttons are icons in every language (long titles overlapped the column, GTA-47);

@@ -36,7 +36,7 @@ void PGSetAssetServer(const char *url){
   NSString *value=[[NSString stringWithUTF8String:url?url:""] stringByTrimmingCharactersInSet:NSCharacterSet.whitespaceAndNewlineCharacterSet];
   while([value hasSuffix:@"/"])value=[value substringToIndex:value.length-1];
   assetServer=value;
-  // Mods installed since the file list was first read (Settings â€º Mods on the home screen) count too.
+  // Mods installed since the file list was first read (Settings › Mods on the home screen) count too.
   if(modsBaseFiles&&!modsLocked)PGReapplyMods();
 }
 NSString *PGAssetServer(void){return assetServer;}
@@ -276,7 +276,7 @@ static NSArray *applyMods(NSArray *files,NSDictionary *manifest){
     if(![full hasPrefix:[resolvedFolder stringByAppendingString:@"/"]])continue;
     NSString *original=[full substringFromIndex:resolvedFolder.length+1];
     if([original isEqualToString:@"README.txt"])continue;
-    // One folder per mod (Settings â€º Mods installs them so): Mods/<mod>/<game path>. A first folder that
+    // One folder per mod (Settings › Mods installs them so): Mods/<mod>/<game path>. A first folder that
     // isn't a game location is the mod's own; ".off" means switched off. Scripts and their settings
     // are for the script layer (NativeASI.c).
     bool owned=false;for(NSString *o in oivOwned)if([o hasSuffix:@"/"]?[original hasPrefix:o]:[original isEqualToString:o])owned=true;

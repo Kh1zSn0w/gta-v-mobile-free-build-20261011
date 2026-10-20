@@ -236,7 +236,7 @@ uint64_t PGMemoryBudgetEvictions(void){return atomic_load(&memoryBudgetEvictions
 static uint64_t simulatedProcessLimit;
 uint64_t PGGPUTextureBytes(void);
 static uint64_t processLimitMB; // the app's memory limit at boot, or the player's cap (0 in the simulator)
-// Settings â€º Memory cap (0 automatic): the game behaves as if iOS allowed only this much.
+// Settings › Memory cap (0 automatic): the game behaves as if iOS allowed only this much.
 static uint64_t memoryCapMB, capReserveBytes;
 // The engine's own address space (its 4 GB reservation) runs out before the phone's memory on phones
 // with a 6-8 GB limit: v1.4 hands freed engine pages back to iOS, so the process headroom looked huge
@@ -1829,7 +1829,7 @@ static bool pg_asi_native(uint64_t hash, uint64_t arguments, uint32_t count, uin
 }
 // Tests: calls a game command by its hash through the script-mod table (Generated/asi-natives.inc), from
 // the game thread inside a script (pg_test_enter_script). Returns its first result word, or -1 if unknown.
-// Settings â€º Cheats uses it too, to look up the names the game shows for vehicles.
+// Settings › Cheats uses it too, to look up the names the game shows for vehicles.
 static uint64_t pg_test_buffer;   // pg_test_call's arguments, then its result words from +8 * 32
 static uint64_t pg_test_call(w2c_game *instance, uint64_t hash, int count, const uint64_t *arguments) {
   if (!pg_asi_game) pg_asi_game = instance;
@@ -1856,7 +1856,7 @@ static uint64_t pg_asi_enter_script(w2c_game *instance) {
 static void pg_asi_leave_script(w2c_game *instance, uint64_t previous) {
   *(uint64_t *)pg_pointer(&env, instance->w2c_g1 + 3088, 8) = previous;
 }
-// Settings â€º Cheats: spawn vehicle, God mode, Never wanted, repair, time and weather. Run each frame by
+// Settings › Cheats: spawn vehicle, God mode, Never wanted, repair, time and weather. Run each frame by
 // pg_cheats_menu_tick from pg_asi_script_tick below.
 #include "NativeCheats.inc"
 #include "NativeVehicleSpawn.inc"
@@ -2101,7 +2101,7 @@ static void pg_test_race(w2c_game *instance) {
 }
 #endif
 #if TARGET_OS_SIMULATOR
-// Test (PG_TEST_SPAWN="adder,buzzard2,..."): Settings â€º Cheats â€º Spawn vehicle without the screen. About
+// Test (PG_TEST_SPAWN="adder,buzzard2,..."): Settings › Cheats › Spawn vehicle without the screen. About
 // 40 s in, logs how many vehicles the menu lists and how many have the game's own names, then spawns
 // each model in turn through PGSpawnVehicle (the next once the last one finished), logging the name
 // and class the menu shows for it and how the spawn ended. Three or more spawns exercise the menu's
@@ -2140,7 +2140,7 @@ static void pg_test_spawn(void) {
   else snprintf(line, sizeof line, "TEST: spawn %d: %s (0x%08x), not in the menu's list%s.", index, name, model, waiting ? "" : ", refused");
   pg_log(line);
 }
-// Test (PG_TEST_CHEAT="god,wanted,time:18,weather:5,natural,repair,clean"): Settings â€º Cheats without
+// Test (PG_TEST_CHEAT="god,wanted,time:18,weather:5,natural,repair,clean"): Settings › Cheats without
 // the screen. With "god" or "wanted", about 40 s in the player gets two wanted stars and the God mode /
 // Never wanted switches go on; what the game itself then says (GET_PLAYER_INVINCIBLE,
 // GET_PLAYER_WANTED_LEVEL, GET_MAX_WANTED_LEVEL) is logged at 45 s, the switches go off at 50 s and
@@ -2222,7 +2222,7 @@ static void pg_asi_frame(w2c_game *instance) {
     state = -1;
     const char *folder = pg_mods_folder_path();
     PGAsiHost host = { (uint8_t *)env.memory.data, env.memory.max_pages * env.memory.page_size, pg_asi_alloc, pg_asi_free, pg_asi_log, pg_asi_native, 0, pg_asi_key_down, 0, 2189, folder };
-    // Scripts sit at the top of Mods, or at the top of a mod's own folder (Settings â€º Mods installs them
+    // Scripts sit at the top of Mods, or at the top of a mod's own folder (Settings › Mods installs them
     // so; a folder ending in ".off" is switched off). Each script's folder holds its settings.
     char places[64][PATH_MAX]; int placeCount = 0;
     snprintf(places[placeCount++], PATH_MAX, "%s", folder);
@@ -2277,7 +2277,7 @@ static void pg_asi_frame(w2c_game *instance) {
 }
 // The game runs each of its scripts once per frame on the main game thread (scrThread::Run, wrapped by
 // Scripts/prepare_asi_script_tick.py); script mods get their turn just before the "main" script, and
-// so does Settings â€º Cheats (vehicles must not be created from the controller thread, see
+// so does Settings › Cheats (vehicles must not be created from the controller thread, see
 // NativeVehicleSpawn.inc). A paused (suspended) script isn't run, so neither are these.
 // Trailers: unhitching one is holding the headlight input, which nobody guesses on touch, so the touch controls
 // show a Detach trailer button while the player's vehicle pulls a trailer (GTA-76). Checked here on the game thread
@@ -2889,7 +2889,7 @@ static void *boot(void *ignored) {
   if (trap) {
     char message[512];
     snprintf(message, sizeof(message), "Native boot stopped: %s%s%s", wasm_rt_strerror(trap),
-             missingImport[0] ? " â€” " : "", missingImport);
+             missingImport[0] ? " — " : "", missingImport);
     pg_log(message);
     return NULL;
   }
@@ -3103,7 +3103,7 @@ void pg_dependency_skipped(w2c_game *instance, u64 job, u64 function, u32 size) 
 // Engine heaps that reserve far more address space than they use (Scripts/prepare_heap_sizes.py, GTA-124). In 358
 // player logs the Replay recorder heap (heap 0 here: 196 MB) never held more than 2 MB and heap 2 (220 MB) at most
 // 58 MB, while the 4 GB address space is what runs out on 6-8 GB iPhones (GTA-70, GTA-145). PG_SMALL_ENGINE_HEAPS=1
-// (Settings â€º Experimental, off by default, Kevin 2026-10-20) makes them 16 and 128 MB: about 270 MB more room.
+// (Settings › Experimental, off by default, Kevin 2026-10-20) makes them 16 and 128 MB: about 270 MB more room.
 // Replay recording never runs on the port (the engine skips its recording threads; START_REPLAY_RECORDING does
 // nothing, simulator 2026-10-20), so the Replay heap is unused either way.
 uint64_t pg_engine_heap_size(uint32_t heap, uint64_t size) {

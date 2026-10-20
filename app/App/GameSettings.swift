@@ -207,7 +207,7 @@ final class GameSettings {
         set { defaults.set(newValue, forKey: "matchScreenShape") }
     }
     /// A hardware keyboard and mouse play through the game's own PC controls (on by default).
-    /// Settings â€º Memory cap: the most memory (MB) the game may use, 0 automatic (the app's limit).
+    /// Settings › Memory cap: the most memory (MB) the game may use, 0 automatic (the app's limit).
     var memoryCapMB: Int {
         get { defaults.integer(forKey: "memoryCapMB") }
         set { defaults.set(max(0, newValue), forKey: "memoryCapMB") }
@@ -238,12 +238,12 @@ final class GameSettings {
         get { defaults.bool(forKey: "steadyWhenHot") }
         set { defaults.set(newValue, forKey: "steadyWhenHot") }
     }
-    /// Graphics â€º Sharper upscaling (MetalFX), off by default: it costs some GPU time.
+    /// Graphics › Sharper upscaling (MetalFX), off by default: it costs some GPU time.
     var sharperUpscaling: Bool {
         get { defaults.bool(forKey: "sharperUpscaling") }
         set { defaults.set(newValue, forKey: "sharperUpscaling"); PGSetSharperUpscaling(newValue ? 1 : 0) }
     }
-    /// This device â€º Experimental (v1.4.3, on by default): improvements that player logs still have to confirm,
+    /// This device › Experimental (v1.4.3, on by default): improvements that player logs still have to confirm,
     /// each with a switch to turn it off. Read by the engine and renderer, so they apply when the app starts.
     var smarterTextureLoading: Bool {   // GTA-128: grey ground after long play
         get { defaults.object(forKey: "expSmarterTextureLoading") as? Bool ?? true }
@@ -279,7 +279,7 @@ final class GameSettings {
         get { defaults.object(forKey: "showFPS") as? Bool ?? true }
         set { defaults.set(newValue, forKey: "showFPS") }
     }
-    /// Touch controls â€º Minimap (GTA-131): where the game's minimap sits. The game reads it when it starts.
+    /// Touch controls › Minimap (GTA-131): where the game's minimap sits. The game reads it when it starts.
     enum MinimapPlace: Int, CaseIterable {
         case bottomLeft, topLeft, custom
         var title: String { [AppLanguage.choose("Bottom left"), AppLanguage.choose("Top left"), AppLanguage.choose("Custom")][rawValue] }
