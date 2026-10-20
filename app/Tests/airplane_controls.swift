@@ -15,15 +15,48 @@ struct PGPadState {
 struct PGControlHints {
   var specialShown = false, specialReady = false, specialActive = false, canDetonate = false,
     helpContext = false, helpShown = false, passenger = false, taxiMenu = false,
-    radioWheelOpen = false
+    radioWheelOpen = false, phoneBrowser = false, helpDetonate = false, trailerAttached = false
   var specialFill: Float = 0
-  var vehicleModel: UInt32 = 0
+  var vehicleModel: UInt32 = 0, pedModel: UInt32 = 0, helpInputs: UInt32 = 0
 }
 func PGClearCameraSwipe() {}
 func PGQueueCameraSwipe(_ x: Float, _ y: Float) {}
 func PGMouseInput(_ x: Int32, _ y: Int32, _ z: Int32) {}
 func PGNextAircraftWeapon() {}
 func PGSetRadioWheelDirection(_ x: Float, _ y: Float, _ active: Bool) {}
+
+func PGInputReadWithin(_ input: Int32, _ ms: Double) -> Int32 { 0 }
+func PGMouseWheel(_ notches: Int32) {}
+func PGSetKey(_ key: UInt8, _ down: Bool) {}
+enum GameFolder { static func log(_ message: String) {} }
+
+enum MinimapGeometry {
+    static let corner = CGPoint(x: -0.0045, y: 0.002)
+    static let size = CGSize(width: 0.150, height: 0.188888)
+
+    private static func hudArea(_ bounds: CGRect) -> CGRect {
+        let width = min(bounds.width, bounds.height * 16 / 9)
+        return CGRect(x: bounds.midX - width / 2, y: bounds.minY, width: width, height: bounds.height)
+    }
+    /// The map's rectangle on screen for a place.
+    static func rect(_ layout: (dx: Double, dy: Double, scale: Double), in bounds: CGRect) -> CGRect {
+        let area = hudArea(bounds), s = CGFloat(layout.scale)
+        let posX = corner.x + CGFloat(layout.dx), posY = corner.y + CGFloat(layout.dy)
+        let height = size.height * s * area.height
+        return CGRect(x: area.minX + posX * area.width, y: area.maxY + posY * area.height - height,
+                      width: size.width * s * area.width, height: height)
+    }
+    /// The place for a rectangle on screen (the inverse of `rect`).
+    static func layout(for rect: CGRect, in bounds: CGRect) -> (dx: Double, dy: Double, scale: Double) {
+        let area = hudArea(bounds)
+        let scale = rect.width / (size.width * area.width)
+        let posX = (rect.minX - area.minX) / area.width
+        let posY = (rect.maxY - area.maxY) / area.height
+        return (Double(posX - corner.x), Double(posY - corner.y), Double(scale))
+    }
+}
+
+
 enum AppLanguage { static func choose(_ s: String) -> String { s } }
 final class GameSettings {
   static let shared = GameSettings()
