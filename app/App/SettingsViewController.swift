@@ -35,7 +35,7 @@ final class SettingsViewController: UITableViewController {
     private enum ControlsRow {
         case tab, swipeLook, swipeAim, stickLook, stickAim
         case targeting, fireAlsoAims, sprintButton, steeringButtons, airplaneRightStick, buttonSize, buttonOpacity, editLayout, minimap
-        case hideTouchWithController, keyboardMouse, inputState, safeZone, vehicleCamera, viewDistance, textureClarity
+        case hideTouchWithController, keyboardMouse, inputState, safeZone, vehicleCamera, viewDistance, textureClarity, sharperWorld
     }
     private var controlsTab: ControlsTab {
         settings.cameraTouchMode == .stick ? .stick : .swipe
@@ -44,7 +44,7 @@ final class SettingsViewController: UITableViewController {
     private var controlsRows: [ControlsRow] {
         let camera: [ControlsRow] = controlsTab == .stick ? [.stickLook, .stickAim] : [.swipeLook, .swipeAim]
         return [.tab] + camera + [.targeting, .fireAlsoAims, .sprintButton, .steeringButtons, .airplaneRightStick, .buttonSize, .buttonOpacity,
-                                  .editLayout, .minimap, .safeZone, .hideTouchWithController, .keyboardMouse, .vehicleCamera, .viewDistance, .textureClarity]
+                                  .editLayout, .minimap, .safeZone, .hideTouchWithController, .keyboardMouse, .vehicleCamera, .viewDistance, .textureClarity, .sharperWorld]
     }
 
     @objc private func controlsTabChanged(_ sender: UISegmentedControl) {
@@ -397,6 +397,12 @@ final class SettingsViewController: UITableViewController {
                     label: AppLanguage.choose("Swipe aim sensitivity")) { [weak self] v in
                     guard let self else { return }
                     if mouse { self.settings.mouseAimSensitivity = v } else { self.settings.swipeAimSensitivity = v }
+                }
+            case .sharperWorld:
+                content.text = "Sharper world detail"
+                content.secondaryText = "Applies on the next game start; individual graphics choices take priority"
+                cell.accessoryView = toggle(settings.sharperWorld, label: "Sharper world detail") { [weak self] enabled in
+                    self?.settings.sharperWorld = enabled
                 }
             case .vehicleCamera:
                 content.text = "Keep driving camera angle"

@@ -34,11 +34,6 @@ final class SettingsHomeViewController: UITableViewController {
             }, sections: [.controls, .gyro]),
         ]
         if engineRunning {
-            list.append(Category(icon: "slider.horizontal.3", title: "Custom trainer", summary: {
-                "Powers, wardrobe, police vehicles and world tools"
-            }, sections: [], page: { TrainerViewController() }))
-        }
-        if engineRunning {
             list.append(Category(icon: "wand.and.stars", title: AppLanguage.choose("Cheats"), summary: {
                 AppLanguage.choose("Vehicles, repairs, weather, time, money and more")
             }, sections: [.cheats]))

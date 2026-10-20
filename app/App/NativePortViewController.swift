@@ -288,6 +288,7 @@ final class NativePortViewController: UIViewController, MTKViewDelegate {
         touchControls.isHidden = true
         touchControls.inputChanged = { [weak self] in self?.pollController() }
         touchControls.openSettings = { [weak self] in self?.showSettings() }
+        touchControls.openTrainer = { [weak self] in self?.showTrainer() }
         touchControls.hintsChanged = { [weak self] line in self?.appendLog(line) }
         KeyboardMouse.shared.start()
         KeyboardMouse.shared.changed = { [weak self] in
@@ -1298,6 +1299,16 @@ final class NativePortViewController: UIViewController, MTKViewDelegate {
         navigation.modalPresentationStyle = .fullScreen
         present(navigation, animated: true)
         appendLog("Send log opened after the engine stopped.")
+    }
+
+    private func showTrainer() {
+        guard engineStarted, presentedViewController == nil, !PGPauseMenuActive() else { return }
+        touchControls.reset()
+        let navigation = UINavigationController(rootViewController: TrainerViewController())
+        LauncherStyle.configure(navigation)
+        navigation.sheetPresentationController?.detents = [.large()]
+        navigation.sheetPresentationController?.prefersGrabberVisible = true
+        present(navigation, animated: true)
     }
 
     private func showSettings() {

@@ -141,7 +141,20 @@ enum GraphicsConfiguration {
         // The player's own details replace the preset's (GTA-84).
         let overrides = settings.graphicsOverrides
         let resourcePreset: GraphicsPreset = preset == .extreme && settings.tier.memoryLimitMB < 5000 ? .balanced : preset
-        let options = settings.viewDistance.apply(to: resourcePreset.engineOptions).map { option -> String in
+        var baseOptions = resourcePreset.engineOptions
+        if settings.sharperWorld && [.balanced, .quality, .ultra, .extreme].contains(resourcePreset) {
+            let levels: [GraphicsPreset: (String, String)] = [.balanced: ("0.30", "0.10"), .quality: ("0.50", "0.30"), .ultra: ("0.70", "0.50"), .extreme: ("0.70", "0.40")]
+            if let level = levels[resourcePreset] {
+                baseOptions = baseOptions.map { option in
+                    if option.hasPrefix("-lodScale=") { return "-lodScale=" + level.0 }
+                    if option.hasPrefix("-pedLodBias=") { return "-pedLodBias=" + level.1 }
+                    if option.hasPrefix("-vehicleLodBias=") { return "-vehicleLodBias=" + level.1 }
+                    return option
+                }
+            }
+        }
+        if preset != .lite { baseOptions = settings.viewDistance.apply(to: baseOptions) }
+        let options = baseOptions.map { option -> String in
             let name = String(option.dropFirst().prefix { $0 != "=" })
             return overrides[name].map { "-\(name)=\($0)" } ?? option
         }
