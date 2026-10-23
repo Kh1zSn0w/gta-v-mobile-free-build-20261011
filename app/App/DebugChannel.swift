@@ -15,7 +15,6 @@ import UIKit
 ///     drag <finger> <x0> <y0> <x1> <y1> <seconds> [hold]   moves over that time, lifts after `hold` more seconds
 ///     pad <a+up|-> <seconds> [lx ly rx ry lt rt]          controller input, merged like a real controller's
 ///     mark <text>                          a line in the game log
-///     sendlog <save 0|1> <note>            Send log to the developer, as its screen does (PG_LOG_ENDPOINT: a local catcher)
 final class DebugChannel {
     static let shared = DebugChannel()
     private weak var controller: NativePortViewController?

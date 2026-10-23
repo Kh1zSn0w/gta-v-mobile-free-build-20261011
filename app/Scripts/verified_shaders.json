@@ -1,0 +1,15 @@
+{
+  "ipa_sha256": "151c1b8a282854b893f172e83fde5ab9788f80c080ad9ffe2fe3c1b5d39d269a",
+  "files": {
+    "shader-reflection.jsonl": "b1119c7e9d6c7f00f407492b21d28847ce9ba9da29a041e25ff54a2e76a2b4db",
+    "shaders-iphoneos.metallib": "0f941dc5a816d23f12fca14dab37b345cbd92568cec5b17177523a20d8cb0865"
+  },
+  "source": {
+    "Source/MetalRenderer/MRShaders.mm": "f6d2c8fccb03e380f069664089d461fdb4c9232ac1e1ef96ca02f6598dcadfd0",
+    "Source/MetalRenderer/MRRenderer.mm": "295f8cebfc3f4447f019ab68a9b327ac641dd2b8387a664285a2e26b06fa7da1",
+    "Source/MetalRenderer/MRInternal.h": "f142b72db2a10628149879d4d8b198607e76f52df0a062e7ded4bc3453da9eee",
+    "Scripts/build_metal_shaders.py": "b28a405bc164a44dae68a8db0035f4d84107b6d0dca52bf9506785392e378840",
+    "ShaderTool/pgmsl.cc": "76e68792034995f595f835da6d456d13f51d45a9c88bdc0e08474d18349c4690",
+    "Source/MetalGraphicsHost.mm": "209270dee8066e26a29c59990882344aedf1e8349c7b4be7d3de65ba1714abd5"
+  }
+}

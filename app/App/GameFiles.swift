@@ -32,8 +32,8 @@ enum GameFiles {
             var parts: [String] = []
             if !inICloud.isEmpty {
                 parts.append(inICloud.count == 1
-                    ? AppLanguage.interpolate(AppLanguage.choose("1 file is only in iCloud, not on this iPhone (for example {arg0}). The game can't read them from there: move the game folder to Files › On My iPhone › GTA V Port."), [inICloud[0].path])
-                    : AppLanguage.interpolate(AppLanguage.choose("{arg0} files are only in iCloud, not on this iPhone (for example {arg1}). The game can't read them from there: move the game folder to Files › On My iPhone › GTA V Port."), [String(inICloud.count), inICloud[0].path]))
+                    ? AppLanguage.interpolate(AppLanguage.choose("1 file is only in iCloud, not on this iPhone (for example {arg0}). The game can't read them from there: move the game folder to Files › On My iPhone › GTA V MOBILE."), [inICloud[0].path])
+                    : AppLanguage.interpolate(AppLanguage.choose("{arg0} files are only in iCloud, not on this iPhone (for example {arg1}). The game can't read them from there: move the game folder to Files › On My iPhone › GTA V MOBILE."), [String(inICloud.count), inICloud[0].path]))
             }
             if !missing.isEmpty {
                 let bytes = missing.reduce(0) { $0 + $1.expected }

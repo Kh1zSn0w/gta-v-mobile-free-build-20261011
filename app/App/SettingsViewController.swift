@@ -34,7 +34,7 @@ final class SettingsViewController: UITableViewController {
         case targeting, fireAlsoAims, sprintButton, steeringButtons, airplaneRightStick, buttonSize, buttonOpacity, editLayout, minimap
         case hideTouchWithController, keyboardMouse, inputState, safeZone, vehicleCamera, viewDistance, textureClarity, sharperWorld
     }
-    /// The camera choice only swaps its two speed rows; every other control setting is always there.
+    /// Camera speed comes first, followed by movement and layout preferences.
     private var controlsRows: [ControlsRow] {
         let camera: [ControlsRow] = [.swipeLook, .swipeAim]
         return camera + [.targeting, .fireAlsoAims, .sprintButton, .steeringButtons, .airplaneRightStick, .buttonSize, .buttonOpacity,
@@ -178,7 +178,7 @@ final class SettingsViewController: UITableViewController {
                 ? AppLanguage.choose("Switches and actions take effect when you're back in the game. Turn God mode and Never wanted off for missions that need damage or a police chase. The game's own cheats close this screen and press the buttons for you, which takes a few seconds. Works in Story mode and Sandbox.")
                 : nil
         case .files: return filesFooter()
-        case .device: return AppLanguage.choose("GTA V Port") + " \(Theme.appVersion). " + AppLanguage.choose("Personal edition by zenyical. Diagnostics stay on this device.")
+        case .device: return AppLanguage.choose("GTA V MOBILE") + " \(Theme.appVersion). " + AppLanguage.choose("Personal edition by zenyical. Diagnostics stay on this device.")
         case .language:
             return AppLanguage.choose("Menus change right away. The game itself switches language the next time it starts.")
         }
@@ -435,7 +435,7 @@ final class SettingsViewController: UITableViewController {
             case .editLayout:
                 content.text = AppLanguage.choose("Edit controls layout")
                 content.secondaryText = ControlsLayout.isCustomized ? AppLanguage.choose("Customized") : AppLanguage.choose("Move, resize or hide buttons")
-                content.textProperties.color = .systemBlue
+                content.textProperties.color = Theme.accent
                 cell.selectionStyle = .default
             case .safeZone:
                 content.text = AppLanguage.choose("Subtitles above the home bar")
@@ -526,6 +526,24 @@ final class SettingsViewController: UITableViewController {
                 content.secondaryText = detail + " " + AppLanguage.choose("Applies the next time the app starts.")
                 cell.accessoryView = toggle(settings[keyPath: key], label: title) { [weak self] in self?.settings[keyPath: key] = $0 }
                 cell.selectionStyle = .none
+            }
+        }
+        if settings.graphicsPreset == .lite {
+            let kind = sectionKind(indexPath.section)
+            if kind == .graphics {
+                let row = (engineRunning ? presets.count + Self.liveGraphicsRows[indexPath.row] : indexPath.row) - presets.count
+                if row == 0 || row == 2 || row == 6 || row >= 7 {
+                    cell.accessoryView = nil
+                    content.secondaryText = row == 0 ? "360p in Performance mode" : row == 2 ? "30 FPS target in Performance mode" : "Managed by Performance mode. Choose another preset to customize."
+                }
+            }
+            if kind == .controls, [.viewDistance, .textureClarity, .sharperWorld].contains(controlsRows[indexPath.row]) {
+                cell.accessoryView = nil
+                content.secondaryText = "Managed by Performance mode. Your normal settings are kept."
+            }
+            if kind == .device, indexPath.row > 0 {
+                cell.accessoryView = nil
+                content.secondaryText = "Managed by Performance mode for this launch."
             }
         }
         cell.contentConfiguration = content

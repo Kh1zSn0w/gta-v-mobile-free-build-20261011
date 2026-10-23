@@ -7,7 +7,7 @@ final class TrainerHomeViewController: UITableViewController {
     private var categories: [(String, String, String, [Int])] {
         let storyStart = 2 + NativeCheatGroup.all.count
         return [
-            ("Player", "God mode, wanted level and money", "person.fill", [2, 3, 1]),
+            ("Player", "Health, weapons, god mode, wanted level and money", "person.fill", [2, 3, 1, storyStart + 1, storyStart + 2]),
             ("Vehicles", "Spawn, repair and clean your ride", "car.fill", [0, 4, 5]),
             ("World", "Time of day and weather", "cloud.sun.fill", [6, 7]),
             ("Story cheats", "The game's original controller cheats", "gamecontroller.fill",

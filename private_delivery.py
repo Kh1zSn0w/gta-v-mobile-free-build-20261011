@@ -38,7 +38,8 @@ if result == 'success':
     files.append(ipa)
 for file in files:
     if not file.is_file(): continue
-    url = release['upload_url'].split('{', 1)[0] + '?name=' + urllib.parse.quote(file.name)
+    asset_name = configuration['output_name'] if file.suffix == '.ipa' else file.name
+    url = release['upload_url'].split('{', 1)[0] + '?name=' + urllib.parse.quote(asset_name)
     assert urllib.parse.urlparse(url).hostname == 'uploads.github.com'
     request = urllib.request.Request(url, data=file.read_bytes(), method='POST',
         headers={**headers, 'Content-Type': 'application/octet-stream'})

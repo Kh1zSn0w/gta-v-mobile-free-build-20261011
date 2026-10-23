@@ -217,7 +217,7 @@ final class NativePortViewController: UIViewController, MTKViewDelegate {
             let title = button.isEnabled || !(self?.engineStarted ?? false) ? AppLanguage.choose("Play") : button.title(for: .disabled) ?? AppLanguage.choose("Loading…")
             var text = AttributedString(title)
             text.font = Theme.display(20, .heavy)
-            text.foregroundColor = button.isEnabled ? UIColor(red: 0.16, green: 0.07, blue: 0.02, alpha: 1) : UIColor(white: 1, alpha: 0.7)
+            text.foregroundColor = button.isEnabled ? Theme.night : UIColor(white: 1, alpha: 0.7)
             button.configuration?.attributedTitle = text
             button.configuration?.image = title == AppLanguage.choose("Play") ? UIImage(systemName: "play.fill", withConfiguration: UIImage.SymbolConfiguration(weight: .heavy)) : nil
         }
@@ -358,11 +358,11 @@ final class NativePortViewController: UIViewController, MTKViewDelegate {
         }
         try? Data().write(to: logFile!)
         LogWriter.shared.open(logFile!)
-        appendLog("GTA V Port \(Theme.appVersion) on iOS \(UIDevice.current.systemVersion)")
+        appendLog("GTA V MOBILE \(Theme.appVersion) on iOS \(UIDevice.current.systemVersion)")
         appendLog("Native UIKit + Metal host. Engine compiled into the app; no WebView or JIT.")
         appendLog("Metal device: \(device?.name ?? "unavailable")")
         GameFolder.log = { [weak self] line in self?.appendLog(line) }
-        // A game folder moved into Files › On My iPhone › GTA V Port is found without any picking.
+        // A game folder moved into Files › On My iPhone › GTA V MOBILE is found without any picking.
         lookForGameFiles()
         NotificationCenter.default.addObserver(self, selector: #selector(lookForGameFiles), name: UIApplication.didBecomeActiveNotification, object: nil)
         NotificationCenter.default.addObserver(self, selector: #selector(installChanged), name: .gameInstallChanged, object: nil)
@@ -627,7 +627,7 @@ final class NativePortViewController: UIViewController, MTKViewDelegate {
         if GameFolder.isChosen {
             guard let data = GameFolder.open() else {
                 appendLog("The game folder on this iPhone can't be opened any more. Choose it again.")
-                showWhenFree(title: AppLanguage.choose("Game files not found"), message: AppLanguage.choose("The game folder was moved or deleted. Put it back in Files › On My iPhone › GTA V Port, or pick it again."))
+                showWhenFree(title: AppLanguage.choose("Game files not found"), message: AppLanguage.choose("The game folder was moved or deleted. Put it back in Files › On My iPhone › GTA V MOBILE, or pick it again."))
                 GameFolder.clear(); updateServerStatus(); launchButton.isEnabled = true; launchButton.setTitle(AppLanguage.choose("Play"), for: .normal)
                 return
             }
@@ -975,7 +975,7 @@ final class NativePortViewController: UIViewController, MTKViewDelegate {
         let raw = GameSettings.shared.assetServer
         let server = Self.isServerAddress(raw) ? raw : ""
         if GameFolder.isChosen {
-            let place = GameFolder.inAppFolder ? AppLanguage.choose("In the GTA V Port folder") : AppLanguage.choose("On this iPhone")
+            let place = GameFolder.inAppFolder ? AppLanguage.choose("In the GTA V MOBILE folder") : AppLanguage.choose("On this iPhone")
             let problems = GameFolder.acceptedProblemCount
             home.setFiles(problems > 0 ? .attention : .ready, title: "\"\(GameFolder.name)\"",
                           detail: problems > 0
@@ -1217,7 +1217,7 @@ final class NativePortViewController: UIViewController, MTKViewDelegate {
     }
 
     private var stoppedPanel: UIView?
-    /// Shown once the engine has stopped: what happened, Send log and Settings, above everything.
+    /// Shown once the engine has stopped: what happened and how to change settings before restarting.
     private func showEngineStopped(title titleText: String? = nil, message: String? = nil) {
         guard stoppedPanel == nil else { return }
         touchControls.reset(publish: false)

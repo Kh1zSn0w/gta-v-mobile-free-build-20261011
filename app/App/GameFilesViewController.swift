@@ -143,11 +143,11 @@ final class GameFilesViewController: UIViewController, UIDocumentPickerDelegate,
         pick.addAction(UIAction { [weak self] _ in self?.pickFolder() }, for: .touchUpInside)
         let buttons = UIStackView(arrangedSubviews: [find, pick, UIView()])
         buttons.spacing = 10
-        let files = Theme.glassButton(AppLanguage.choose("Open GTA V Port in Files"), symbol: "arrow.up.forward.app")
+        let files = Theme.glassButton(AppLanguage.choose("Open GTA V MOBILE in Files"), symbol: "arrow.up.forward.app")
         files.addAction(UIAction { [weak self] _ in self?.openAppFolderInFiles() }, for: .touchUpInside)
         let filesRow = UIStackView(arrangedSubviews: [files, UIView()])
         return card(AppLanguage.choose("Already on this iPhone"), [
-            note(AppLanguage.choose("Easiest: in the Files app, move your unpacked game folder into On My iPhone › GTA V Port. The app finds it there by itself, however deep it is.")),
+            note(AppLanguage.choose("Easiest: in the Files app, move your unpacked game folder into On My iPhone › GTA V MOBILE. The app finds it there by itself, however deep it is.")),
             note(AppLanguage.choose("This button opens that folder in Files. Move your game folder into it (touch and hold the game folder › Move), then come back: the app checks it by itself.")),
             filesRow,
             note(AppLanguage.choose("Somewhere else? Choose any folder above it, even On My iPhone itself, and the app searches everything inside.")),
@@ -233,7 +233,7 @@ final class GameFilesViewController: UIViewController, UIDocumentPickerDelegate,
         if let report, found {
             if report.isComplete {
                 let format = GameFolder.inAppFolder
-                    ? AppLanguage.choose("\"{arg0}\" in the GTA V Port folder: all {arg1} game files checked ({arg2}).")
+                    ? AppLanguage.choose("\"{arg0}\" in the GTA V MOBILE folder: all {arg1} game files checked ({arg2}).")
                     : AppLanguage.choose("\"{arg0}\" on this iPhone: all {arg1} game files checked ({arg2}).")
                 setStatus(true, title: AppLanguage.choose("Ready to play"), detail: AppLanguage.interpolate(format, [GameFolder.name, String(report.fileCount), GameFiles.Report.size(report.totalBytes)]))
             } else {
@@ -244,11 +244,11 @@ final class GameFilesViewController: UIViewController, UIDocumentPickerDelegate,
             setStatus(true, title: AppLanguage.choose("Ready to play"), detail: AppLanguage.interpolate(AppLanguage.choose("\"{arg0}\" on this iPhone."), [GameFolder.name]))
         } else if let problem = GameFolder.appFolderReport {
             let explanation = problem.explanation
-            setStatus(false, title: explanation.title, detail: AppLanguage.choose("Found a game folder in GTA V Port, but it can't be used yet. ") + explanation.message)
+            setStatus(false, title: explanation.title, detail: AppLanguage.choose("Found a game folder in GTA V MOBILE, but it can't be used yet. ") + explanation.message)
         } else if !server.isEmpty {
             setStatus(true, title: AppLanguage.choose("Streaming from your server"), detail: server)
         } else if lookedAgain {
-            setStatus(false, title: AppLanguage.choose("Nothing in this app's folder"), detail: AppLanguage.choose("The app looked through every folder in On My iPhone › GTA V Port and found no game. If your game is somewhere else (another folder, or another app's folder), tap Choose a folder… below and pick it, or pick On My iPhone itself to search everything. iOS only lets an app into other folders once you pick them."))
+            setStatus(false, title: AppLanguage.choose("Nothing in this app's folder"), detail: AppLanguage.choose("The app looked through every folder in On My iPhone › GTA V MOBILE and found no game. If your game is somewhere else (another folder, or another app's folder), tap Choose a folder… below and pick it, or pick On My iPhone itself to search everything. iOS only lets an app into other folders once you pick them."))
         } else {
             setStatus(nil, title: AppLanguage.choose("No game files yet"), detail: AppLanguage.choose("Use one of the ways below. Whichever you choose, the app checks every file before you play."))
         }
@@ -370,7 +370,7 @@ final class GameFilesViewController: UIViewController, UIDocumentPickerDelegate,
             if opened {
                 self.lookWhenBack = true
             } else {
-                self.setStatus(false, title: AppLanguage.choose("Files didn't open"), detail: AppLanguage.choose("Open the Files app yourself and go to On My iPhone › GTA V Port, move your game folder there, then come back."))
+                self.setStatus(false, title: AppLanguage.choose("Files didn't open"), detail: AppLanguage.choose("Open the Files app yourself and go to On My iPhone › GTA V MOBILE, move your game folder there, then come back."))
             }
         }
     }
@@ -388,7 +388,7 @@ final class GameFilesViewController: UIViewController, UIDocumentPickerDelegate,
         // On some sideloaded installs the picker's Open never answers, so players can only cancel (GTA-62).
         GameFolder.log("Game files: the folder picker was closed without a folder")
         if GameFolder.isChosen, lastReport?.isComplete == true { return }   // the game is set up already
-        setStatus(nil, title: AppLanguage.choose("Open didn't work?"), detail: AppLanguage.choose("Some sideloaded installs can't hand a folder to the app. Tap Open GTA V Port in Files, move your game folder there, then come back: the app finds it by itself."))
+        setStatus(nil, title: AppLanguage.choose("Open didn't work?"), detail: AppLanguage.choose("Some sideloaded installs can't hand a folder to the app. Tap Open GTA V MOBILE in Files, move your game folder there, then come back: the app finds it by itself."))
     }
 
     private func pickFolder() {

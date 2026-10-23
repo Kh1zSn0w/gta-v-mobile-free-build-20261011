@@ -1,6 +1,7 @@
 """Prepare a reproducible native CPU boot experiment from the local mirror."""
 import argparse
 import hashlib
+import os
 from pathlib import Path
 import platform
 import shutil
@@ -119,14 +120,18 @@ if not bcdec.exists():
     with tarfile.open(archive) as package:
         extract(package, root / 'Tools')
     (root / 'Tools' / f'bcdec-{commit}').rename(bcdec)
-# The game's shaders, precompiled into the app's Metal library.
-run('python3', 'Scripts/fetch_shader_tool.py')
-shaders = root / 'Build/Inputs/shaders'
-run('python3', 'Scripts/unpack_shaders.py', '--shaders', str((options.mirror / 'b/8b0b5899ed/shaders').resolve()), '--out', str(shaders))
 sdk_args = []
 for sdk in options.sdk or ['iphoneos']:
     sdk_args += ['--sdk', sdk]
-run('python3', 'Scripts/build_metal_shaders.py', str(shaders), *sdk_args)
+if os.environ.get('PG_REUSE_VERIFIED_SHADERS') == '1':
+    if options.sdk and options.sdk != ['iphoneos']:
+        raise RuntimeError('The verified shader cache is for iPhone devices only.')
+    run('python3', 'Scripts/fetch_verified_shaders.py', '--check')
+else:
+    run('python3', 'Scripts/fetch_shader_tool.py')
+    shaders = root / 'Build/Inputs/shaders'
+    run('python3', 'Scripts/unpack_shaders.py', '--shaders', str((options.mirror / 'b/8b0b5899ed/shaders').resolve()), '--out', str(shaders))
+    run('python3', 'Scripts/build_metal_shaders.py', str(shaders), *sdk_args)
 run('python3', 'Scripts/build_opus.py', *sdk_args)
 run('python3', 'Scripts/build_blink.py', *sdk_args)
 run('xcodegen', 'generate', '--spec', 'project.yml')

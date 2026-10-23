@@ -24,7 +24,7 @@ enum ControlContext: Equatable {
 
 enum ControlStyle {
     /// GTA V's HUD blue, the only accent colour in the overlay.
-    static let accent = UIColor(red: 0.365, green: 0.714, blue: 0.898, alpha: 1)
+    static let accent = UIColor(red: 0.56, green: 0.78, blue: 0.75, alpha: 1)
     /// SF Symbols for controls that have no generated icon.
     static let fallbackSymbol: [String: String] = [
         "radio": "radio", "mods": "puzzlepiece.extension.fill", "look_back": "arrow.uturn.backward", "up": "chevron.up", "down": "chevron.down",

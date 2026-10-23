@@ -112,7 +112,7 @@ final class SettingsHomeViewController: UITableViewController {
     }
 
     override func tableView(_ tableView: UITableView, titleForFooterInSection section: Int) -> String? {
-        AppLanguage.choose("GTA V Port") + " \(Theme.appVersion)"
+        AppLanguage.choose("GTA V MOBILE") + " \(Theme.appVersion)"
     }
 
     override func tableView(_ tableView: UITableView, didSelectRowAt indexPath: IndexPath) {
