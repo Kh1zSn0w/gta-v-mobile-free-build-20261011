@@ -66,9 +66,6 @@ final class HomeView: UIView {
         label.text = "CHOOSE YOUR GAME"
         label.font = Theme.body(11, .bold)
         label.textColor = Theme.tertiaryText
-        let utilities = UIStackView(arrangedSubviews: [settingsButton, layoutButton])
-        utilities.spacing = 10
-        utilities.distribution = .fillEqually
         for item in [preloadLabel, controllerLabel] {
             item.font = Theme.body(11)
             item.textColor = Theme.tertiaryText
@@ -83,7 +80,7 @@ final class HomeView: UIView {
         version.text = Theme.appVersion
         version.textColor = Theme.tertiaryText
         version.font = Theme.body(11, .medium)
-        let column = UIStackView(arrangedSubviews: [header, label, choices, modeDetail, playButton, filesCard, utilities, preloadLabel, controllerLabel, version])
+        let column = UIStackView(arrangedSubviews: [header, label, choices, modeDetail, playButton, preloadLabel])
         column.axis = .vertical
         column.spacing = 12
         column.setCustomSpacing(24, after: header)
@@ -91,7 +88,6 @@ final class HomeView: UIView {
         column.setCustomSpacing(7, after: choices)
         column.setCustomSpacing(18, after: modeDetail)
         column.setCustomSpacing(18, after: playButton)
-        column.setCustomSpacing(8, after: utilities)
         let scroll = UIScrollView()
         scroll.showsVerticalScrollIndicator = false
         scroll.alwaysBounceVertical = false
@@ -110,6 +106,16 @@ final class HomeView: UIView {
             column.topAnchor.constraint(equalTo: scroll.contentLayoutGuide.topAnchor, constant: 22),
             column.bottomAnchor.constraint(equalTo: scroll.contentLayoutGuide.bottomAnchor, constant: -22),
             column.widthAnchor.constraint(equalTo: scroll.frameLayoutGuide.widthAnchor)
+        ])
+        let tools = UIStackView(arrangedSubviews: [filesCard, settingsButton, layoutButton, controllerLabel, version])
+        tools.axis = .vertical
+        tools.spacing = 10
+        tools.translatesAutoresizingMaskIntoConstraints = false
+        addSubview(tools)
+        NSLayoutConstraint.activate([
+            tools.leadingAnchor.constraint(equalTo: scroll.trailingAnchor, constant: 26),
+            tools.trailingAnchor.constraint(equalTo: safe.trailingAnchor, constant: -20),
+            tools.bottomAnchor.constraint(equalTo: safe.bottomAnchor, constant: -22)
         ])
         // Debug output is opt-in and never takes space from the launch controls.
         log.translatesAutoresizingMaskIntoConstraints = false

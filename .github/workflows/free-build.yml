@@ -49,6 +49,8 @@ jobs:
           echo "$DEVICE" > /tmp/gta-device
       - name: Check controls
         run: bash app/Tests/run_airplane_controls.sh "$(cat /tmp/gta-device)"
+      - name: Check performance mode
+        run: bash app/Tests/performance_policy.sh "$(cat /tmp/gta-device)"
       - name: Capture UI
         run: bash app/Tests/night_preview.sh "$(cat /tmp/gta-device)"
       - uses: actions/upload-artifact@v4
