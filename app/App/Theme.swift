@@ -1,7 +1,6 @@
 import UIKit
 
-/// The look shared by the start screen, the game files screens and Settings: the app icon's sunset
-/// over blue, glass panels on top of the background art, and one warm accent for the main actions.
+/// Shared night palette for the launcher, settings and game file screens.
 enum Theme {
     /// The app's version as players should quote it in reports, e.g. "v1.3 (6)".
     /// The community: official releases, help and announcements.
@@ -14,20 +13,20 @@ enum Theme {
     /// The Lite build for iPhones with little memory: Info.plist PGLiteMode (build_ipa.sh --lite), or PG_LITE=1.
     static let isLite: Bool = (Bundle.main.object(forInfoDictionaryKey: "PGLiteMode") as? Bool ?? false)
         || (ProcessInfo.processInfo.environment["PG_LITE"].map { $0 != "0" } ?? false)
-    static let accent = LauncherStyle.accent        // sunset orange
-    static let accentDeep = UIColor(red: 0.95, green: 0.36, blue: 0.16, alpha: 1)
+    static let accent = LauncherStyle.accent        // muted teal
+    static let accentDeep = UIColor(red: 0.34, green: 0.60, blue: 0.59, alpha: 1)
     static let ok = UIColor(red: 0.30, green: 0.85, blue: 0.47, alpha: 1)
     static let warning = UIColor(red: 1.0, green: 0.78, blue: 0.26, alpha: 1)
     static let problem = UIColor(red: 1.0, green: 0.42, blue: 0.38, alpha: 1)
     static let text = UIColor.white
     static let secondaryText = UIColor(white: 1, alpha: 0.68)
     static let tertiaryText = UIColor(white: 1, alpha: 0.45)
-    static let night = UIColor(red: 0.03, green: 0.05, blue: 0.11, alpha: 1)       // behind everything
+    static let night = UIColor(red: 0.025, green: 0.04, blue: 0.05, alpha: 1)       // behind everything
     static let panelStroke = UIColor(white: 1, alpha: 0.12)
 
     static func display(_ size: CGFloat, _ weight: UIFont.Weight = .heavy) -> UIFont {
         let base = UIFont.systemFont(ofSize: size, weight: weight)
-        let descriptor = base.fontDescriptor.withDesign(.rounded) ?? base.fontDescriptor
+        let descriptor = base.fontDescriptor
         return UIFont(descriptor: descriptor, size: size)
     }
     static func body(_ size: CGFloat = 15, _ weight: UIFont.Weight = .regular) -> UIFont { .systemFont(ofSize: size, weight: weight) }
@@ -43,11 +42,11 @@ enum Theme {
         return panel
     }
 
-    /// The background art (the beach selfie) with darkening on the left where the controls sit.
+    /// Keep the skyline visible while protecting text contrast on the left.
     static func backdrop(image name: String, darken: CGFloat = 0.55) -> UIView {
         let view = UIView()
         view.backgroundColor = night
-        let art = UIImageView(image: UIImage(named: name == "StartBackground" ? "LauncherArtwork.jpg" : name))
+        let art = UIImageView(image: UIImage(named: name == "StartBackground" ? "NightCity.png" : name == "SettingsBackground" ? "NightSettings.png" : name))
         art.contentMode = .scaleAspectFill
         art.clipsToBounds = true
         let shade = GradientView(colors: [night.withAlphaComponent(0.92), night.withAlphaComponent(darken), night.withAlphaComponent(0.05)],
@@ -69,11 +68,11 @@ enum Theme {
     static func dimmedBackdrop(image name: String) -> UIView {
         let view = UIView()
         view.backgroundColor = night
-        let art = UIImageView(image: UIImage(named: name == "StartBackground" ? "LauncherArtwork.jpg" : name))
+        let art = UIImageView(image: UIImage(named: name == "StartBackground" ? "NightCity.png" : name == "SettingsBackground" ? "NightSettings.png" : name))
         art.contentMode = .scaleAspectFill
         art.clipsToBounds = true
         let shade = UIView()
-        shade.backgroundColor = night.withAlphaComponent(0.78)
+        shade.backgroundColor = night.withAlphaComponent(0.42)
         for layer in [art, shade] {
             layer.translatesAutoresizingMaskIntoConstraints = false
             view.addSubview(layer)
@@ -95,14 +94,14 @@ enum Theme {
     static let rowBackground = UIColor(white: 1, alpha: 0.07)
     static let rowSelected = UIColor(white: 1, alpha: 0.14)
 
-    /// The big main-action button (Play, Install): warm gradient, rounded, bold.
+    /// The primary action uses the same muted teal throughout the app.
     static func primaryButton(_ title: String, symbol: String? = nil) -> UIButton {
         var config = UIButton.Configuration.filled()
         config.title = title
         config.image = symbol.map { UIImage(systemName: $0, withConfiguration: UIImage.SymbolConfiguration(weight: .heavy)) } ?? nil
         config.imagePadding = 10
-        config.cornerStyle = .capsule
-        config.baseForegroundColor = UIColor(red: 0.16, green: 0.07, blue: 0.02, alpha: 1)
+        config.cornerStyle = .large
+        config.baseForegroundColor = night
         config.background.backgroundColor = accent
         config.contentInsets = NSDirectionalEdgeInsets(top: 14, leading: 30, bottom: 14, trailing: 30)
         config.titleTextAttributesTransformer = UIConfigurationTextAttributesTransformer { attributes in
@@ -111,10 +110,10 @@ enum Theme {
         let button = UIButton(configuration: config)
         button.configurationUpdateHandler = { button in
             button.configuration?.background.backgroundColor = button.isEnabled ? (button.isHighlighted ? accentDeep : accent) : UIColor(white: 1, alpha: 0.16)
-            button.configuration?.baseForegroundColor = button.isEnabled ? UIColor(red: 0.16, green: 0.07, blue: 0.02, alpha: 1) : UIColor(white: 1, alpha: 0.6)
+            button.configuration?.baseForegroundColor = button.isEnabled ? night : UIColor(white: 1, alpha: 0.6)
         }
         button.layer.shadowColor = accent.cgColor
-        button.layer.shadowOpacity = 0.35
+        button.layer.shadowOpacity = 0.12
         button.layer.shadowRadius = 18
         button.layer.shadowOffset = .zero
         return button
@@ -126,7 +125,7 @@ enum Theme {
         config.title = title
         config.image = UIImage(systemName: symbol)
         config.imagePadding = 8
-        config.cornerStyle = .capsule
+        config.cornerStyle = .large
         config.baseForegroundColor = text
         config.background.backgroundColor = UIColor(white: 1, alpha: 0.12)
         config.contentInsets = NSDirectionalEdgeInsets(top: 10, leading: 16, bottom: 10, trailing: 16)

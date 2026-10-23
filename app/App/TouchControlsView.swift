@@ -292,7 +292,7 @@ final class TouchControlsView: UIView {
     private var fractionalMousePixels = CGPoint.zero
     private var lastCameraMode: GameSettings.CameraTouchMode = .stick
     private var cameraSwipeAvailable: Bool {
-        context != .menu && !phoneDock && !gamePhoneOut && !promptActive && !context.flying && !hints.phoneBrowser && !helpAsksRightStick
+        context != .menu && !phoneDock && !gamePhoneOut && !promptActive && !planeStickEnabled && !hints.phoneBrowser && !helpAsksRightStick
     }
     private var swipeCameraEnabled: Bool {
         GameSettings.shared.cameraTouchMode != .stick && cameraSwipeAvailable
@@ -624,6 +624,7 @@ final class TouchControlsView: UIView {
         addSubview(moveStick)
         addSubview(rightStick)
         addSubview(lookStick)
+        lookStick.isHidden = true
         for button in allButtons { button.alpha = 0; addSubview(button) }
         for pedal in [gas, brake, dive, surface, throttleUp, throttleDown] { pedal.isPedal = true }
         for button in [gas, brake, handbrake, dive, surface, throttleUp, throttleDown] { button.slideTarget = true }
@@ -1272,9 +1273,9 @@ final class TouchControlsView: UIView {
 
     // MARK: Output
 
-    /// Whether the player is aiming; gyro aim runs only then by default.
+    /// Whether aiming changes the swipe sensitivity.
     var aiming: Bool { aimActive || fire.pressed || leftFire.pressed || driveBy.pressed }
-    /// The plane's right thumb controls throttle/rudder rather than gyro aiming.
+    /// Optional aircraft throttle and rudder control.
     var flyingWithRightStick: Bool { has(isPlaneStick) }
 
     /// The current controller state. `elapsed` turns finger travel into a

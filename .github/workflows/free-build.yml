@@ -1,38 +1,34 @@
-name: Free personal iPhone build
+name: GTA V MOBILE
 on:
   workflow_dispatch:
-    inputs:
-      controls_only:
-        type: boolean
-        default: false
 permissions:
   contents: read
 concurrency:
-  group: ${{ inputs.controls_only && 'upstream-v144-controls-check' || 'upstream-v144-custom-build' }}
+  group: gta-v-mobile-night
   cancel-in-progress: true
 jobs:
   native:
-    if: ${{ !inputs.controls_only }}
     runs-on: macos-15
     timeout-minutes: 120
     steps:
       - uses: actions/checkout@v4
-      - name: Install build tools
-        run: brew install xcodegen
-      - name: Check camera audio memory and asset cache
+      - run: brew install xcodegen
+      - name: Check Swift
+        run: bash app/Tests/check_swift.sh
+      - name: Check engine helpers
         run: bash app/Scripts/check_interaction_audio.sh
-      - name: Verify build inputs
+      - name: Prepare inputs
         run: python3 app/Scripts/fetch_release_inputs.py
-      - name: Install Metal compiler if required
+      - name: Prepare Metal
         run: xcrun -sdk iphoneos metal --version > /dev/null 2>&1 || xcodebuild -downloadComponent MetalToolchain
-      - name: Compile updated personal iPhone app
+      - name: Build
         env:
           PG_DEFAULT_ASSET_SERVER: http://192.168.1.115:8000
           JOBS: '3'
         run: bash build_ipa.sh --mirror app/Build/Inputs/mirror
-      - name: Verify downloaded file streaming
+      - name: Check streaming
         run: bash app/Scripts/check_local_streaming.sh
-      - name: Deliver IPA and diagnostics privately
+      - name: Deliver
         if: always()
         env:
           PRIVATE_DELIVERY_TOKEN: ${{ secrets.PRIVATE_DELIVERY_TOKEN }}
@@ -40,13 +36,24 @@ jobs:
         run: python3 private_delivery.py
   controls:
     runs-on: macos-15
-    timeout-minutes: 12
+    timeout-minutes: 18
     steps:
       - uses: actions/checkout@v4
-      - name: Check airplane controls
-        timeout-minutes: 6
+      - name: Check Swift
+        run: bash app/Tests/check_swift.sh
+      - name: Start simulator
         run: |
           DEVICE=$(xcrun simctl list devices available -j | python3 -c 'import json,sys; d=json.load(sys.stdin); print(next(x["udid"] for group in d["devices"].values() for x in group if x["name"].startswith("iPhone")))')
           xcrun simctl boot "$DEVICE" || true
           xcrun simctl bootstatus "$DEVICE" -b
-          bash app/Tests/run_airplane_controls.sh "$DEVICE"
+          echo "$DEVICE" > /tmp/gta-device
+      - name: Check controls
+        run: bash app/Tests/run_airplane_controls.sh "$(cat /tmp/gta-device)"
+      - name: Capture UI
+        run: bash app/Tests/night_preview.sh "$(cat /tmp/gta-device)"
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: UI
+          path: app/Build/Screenshots
+          retention-days: 3

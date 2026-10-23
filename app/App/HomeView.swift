@@ -9,7 +9,6 @@ final class HomeView: UIView {
     let playButton = Theme.primaryButton(AppLanguage.choose("Play"), symbol: "play.fill")
     let settingsButton = Theme.glassButton(AppLanguage.choose("Settings"), symbol: "gearshape.fill")
     let layoutButton = Theme.glassButton(AppLanguage.choose("Controls layout"), symbol: "hand.tap.fill")
-    let telegramButton = Theme.glassButton(AppLanguage.choose("Telegram"), symbol: "paperplane.fill")
     let preloadLabel = UILabel()
     let controllerLabel = UILabel()
     /// Taps on the game files card.
@@ -26,175 +25,111 @@ final class HomeView: UIView {
     private let modeDetail = UILabel()
     private let brandTitle = UILabel()
     private let brandSubtitle = UILabel()
-    private let mapTitle = UILabel()
-    /// Sandbox only: which map (it takes the place of the mode description).
-    private let mapRow = UIStackView()
-    private var mapChips: [UIButton] = []
-    var onMap: ((Int) -> Void)?
-
     init(modes: [(title: String, symbol: String)], log: UIView) {
         super.init(frame: .zero)
-        let backdrop = Theme.backdrop(image: "StartBackground")
-        pin(backdrop, to: self)
+        pin(Theme.backdrop(image: "StartBackground", darken: 0.25), to: self)
 
         let icon = UIImageView(image: UIImage(named: "HomeIcon"))
-        icon.layer.cornerRadius = 14
-        icon.layer.cornerCurve = .continuous
+        icon.contentMode = .scaleAspectFit
+        icon.layer.cornerRadius = 12
         icon.clipsToBounds = true
-        icon.widthAnchor.constraint(equalToConstant: 52).isActive = true
-        icon.heightAnchor.constraint(equalToConstant: 52).isActive = true
-        let title = brandTitle
-        title.text = "GTA V Mobile"
-        title.font = Theme.display(30)
-        title.textColor = Theme.text
-        title.adjustsFontSizeToFitWidth = true
-        title.minimumScaleFactor = 0.7
-        let subtitle = brandSubtitle
-        subtitle.text = AppLanguage.choose("Fan project · plays your own game files") + " · \(Theme.appVersion)"
-        subtitle.font = Theme.body(14, .medium)
-        subtitle.textColor = Theme.secondaryText
-        subtitle.numberOfLines = 2		// long translations keep the version visible
-        let titles = UIStackView(arrangedSubviews: [title, subtitle])
+        NSLayoutConstraint.activate([icon.widthAnchor.constraint(equalToConstant: 64), icon.heightAnchor.constraint(equalToConstant: 64)])
+        brandTitle.text = "GTA V MOBILE"
+        brandTitle.font = Theme.display(32, .black)
+        brandTitle.textColor = Theme.text
+        brandTitle.adjustsFontSizeToFitWidth = true
+        brandTitle.minimumScaleFactor = 0.75
+        brandSubtitle.text = "Forked by zenyical (original iOS port by: kevinerikjs)"
+        brandSubtitle.font = Theme.body(12, .medium)
+        brandSubtitle.textColor = Theme.secondaryText
+        brandSubtitle.numberOfLines = 0
+        let titles = UIStackView(arrangedSubviews: [brandTitle, brandSubtitle])
         titles.axis = .vertical
-        titles.spacing = 2
+        titles.spacing = 5
         let header = UIStackView(arrangedSubviews: [icon, titles])
-        header.spacing = 14
         header.alignment = .center
+        header.spacing = 16
 
         buildFilesCard()
-
         for (index, mode) in modes.enumerated() {
             let card = ModeCard(title: mode.title, symbol: mode.symbol)
             card.addAction(UIAction { [weak self] _ in self?.onMode?(index) }, for: .touchUpInside)
             modeCards.append(card)
         }
-        let modes = UIStackView(arrangedSubviews: modeCards)
-        modes.spacing = 10
-        modes.distribution = .fillEqually
+        let choices = UIStackView(arrangedSubviews: modeCards)
+        choices.spacing = 12
+        choices.distribution = .fillEqually
         modeDetail.font = Theme.body(13)
         modeDetail.textColor = Theme.secondaryText
-        modeDetail.numberOfLines = 2
-        modeDetail.adjustsFontSizeToFitWidth = true
-        modeDetail.minimumScaleFactor = 0.8
-
-        telegramButton.addAction(UIAction { _ in UIApplication.shared.open(Theme.telegramURL) }, for: .touchUpInside)
-        telegramButton.accessibilityLabel = AppLanguage.choose("Five Star Port on Telegram")
-        let secondary = self.secondary
-        // Icons only, in every language; the names stay for VoiceOver.
-        settingsButton.accessibilityLabel = AppLanguage.choose("Settings")
-        layoutButton.accessibilityLabel = AppLanguage.choose("Controls layout")
-        for button in [telegramButton, layoutButton, settingsButton] { button.configuration?.title = nil }
-        secondary.addArrangedSubviews([telegramButton, layoutButton, settingsButton])
-        secondary.spacing = 10
-        secondary.translatesAutoresizingMaskIntoConstraints = false
-        for label in [preloadLabel, controllerLabel] {
-            label.font = .monospacedDigitSystemFont(ofSize: 12, weight: .medium)
-            label.textColor = Theme.tertiaryText
-            label.numberOfLines = 0
+        modeDetail.numberOfLines = 0
+        let label = UILabel()
+        label.text = "CHOOSE YOUR GAME"
+        label.font = Theme.body(11, .bold)
+        label.textColor = Theme.tertiaryText
+        let utilities = UIStackView(arrangedSubviews: [settingsButton, layoutButton])
+        utilities.spacing = 10
+        utilities.distribution = .fillEqually
+        for item in [preloadLabel, controllerLabel] {
+            item.font = Theme.body(11)
+            item.textColor = Theme.tertiaryText
+            item.numberOfLines = 0
         }
         preloadLabel.isHidden = true
-
-        let mapLabel = mapTitle
-        mapLabel.text = AppLanguage.choose("Map")
-        mapLabel.font = Theme.body(13, .semibold)
-        mapLabel.textColor = Theme.secondaryText
-        mapRow.addArrangedSubview(mapLabel)
-        for (index, title) in GameSettings.sandboxMapTitles.enumerated() {
-            var config = UIButton.Configuration.gray()
-            config.title = title
-            config.cornerStyle = .capsule
-            config.contentInsets = NSDirectionalEdgeInsets(top: 5, leading: 12, bottom: 5, trailing: 12)
-            config.titleTextAttributesTransformer = UIConfigurationTextAttributesTransformer { a in var a = a; a.font = Theme.body(13, .semibold); return a }
-            let chip = UIButton(configuration: config)
-            chip.addAction(UIAction { [weak self] _ in self?.onMap?(index) }, for: .touchUpInside)
-            mapChips.append(chip)
-            mapRow.addArrangedSubview(chip)
-        }
-        mapRow.addArrangedSubview(UIView())
-        mapRow.spacing = 8
-        mapRow.alignment = .center
-        mapRow.isHidden = true
-        let column = UIStackView(arrangedSubviews: [header, filesCard, modes, modeDetail, mapRow, playButton, preloadLabel, controllerLabel])
+        controllerLabel.isHidden = true
+        playButton.accessibilityIdentifier = "home.play"
+        settingsButton.accessibilityIdentifier = "home.settings"
+        filesCard.accessibilityIdentifier = "home.files"
+        let version = UILabel()
+        version.text = Theme.appVersion
+        version.textColor = Theme.tertiaryText
+        version.font = Theme.body(11, .medium)
+        let column = UIStackView(arrangedSubviews: [header, label, choices, modeDetail, playButton, filesCard, utilities, preloadLabel, controllerLabel, version])
         column.axis = .vertical
         column.spacing = 12
-        column.setCustomSpacing(18, after: header)
-        column.setCustomSpacing(12, after: filesCard)
-        column.setCustomSpacing(6, after: modes)
-        column.setCustomSpacing(14, after: modeDetail)
-        column.setCustomSpacing(14, after: mapRow)
-        column.setCustomSpacing(10, after: playButton)
-        column.alignment = .fill
-
-        let scroll = self.scroll
+        column.setCustomSpacing(24, after: header)
+        column.setCustomSpacing(7, after: label)
+        column.setCustomSpacing(7, after: choices)
+        column.setCustomSpacing(18, after: modeDetail)
+        column.setCustomSpacing(18, after: playButton)
+        column.setCustomSpacing(8, after: utilities)
+        let scroll = UIScrollView()
         scroll.showsVerticalScrollIndicator = false
         scroll.alwaysBounceVertical = false
         scroll.translatesAutoresizingMaskIntoConstraints = false
         column.translatesAutoresizingMaskIntoConstraints = false
         addSubview(scroll)
         scroll.addSubview(column)
-        log.translatesAutoresizingMaskIntoConstraints = false
-        addSubview(log)
-        addSubview(secondary)
-        let guide = safeAreaLayoutGuide
-        let width = column.widthAnchor.constraint(equalTo: guide.widthAnchor, multiplier: 0.44)
-        width.priority = .defaultHigh
+        let safe = safeAreaLayoutGuide
         NSLayoutConstraint.activate([
-            scroll.leadingAnchor.constraint(equalTo: guide.leadingAnchor, constant: 28),
-            scroll.topAnchor.constraint(equalTo: topAnchor),
-            scroll.bottomAnchor.constraint(equalTo: bottomAnchor),
-            scroll.widthAnchor.constraint(equalTo: column.widthAnchor),
+            scroll.leadingAnchor.constraint(equalTo: safe.leadingAnchor, constant: 26),
+            scroll.topAnchor.constraint(equalTo: safe.topAnchor),
+            scroll.bottomAnchor.constraint(equalTo: safe.bottomAnchor),
+            scroll.widthAnchor.constraint(equalTo: safe.widthAnchor, multiplier: 0.52),
             column.leadingAnchor.constraint(equalTo: scroll.contentLayoutGuide.leadingAnchor),
             column.trailingAnchor.constraint(equalTo: scroll.contentLayoutGuide.trailingAnchor),
-            column.topAnchor.constraint(equalTo: scroll.contentLayoutGuide.topAnchor, constant: 12),
-            column.bottomAnchor.constraint(equalTo: scroll.contentLayoutGuide.bottomAnchor, constant: -12),
-            // Centred vertically when there's room, scrolling when there isn't.
-            column.heightAnchor.constraint(greaterThanOrEqualTo: scroll.frameLayoutGuide.heightAnchor, constant: -24),
-            width,
-            column.widthAnchor.constraint(lessThanOrEqualToConstant: 440),
-            column.widthAnchor.constraint(greaterThanOrEqualToConstant: 320),
-            secondary.trailingAnchor.constraint(equalTo: guide.trailingAnchor, constant: -20),
-            // Long translations (Russian, German) must not run over the title column.
-            secondary.leadingAnchor.constraint(greaterThanOrEqualTo: scroll.trailingAnchor, constant: 12),
-            secondary.topAnchor.constraint(equalTo: guide.topAnchor, constant: 14),
-            log.leadingAnchor.constraint(equalTo: scroll.trailingAnchor, constant: 20),
-            log.trailingAnchor.constraint(equalTo: guide.trailingAnchor, constant: -16),
-            log.topAnchor.constraint(equalTo: secondary.bottomAnchor, constant: 12),
-            log.bottomAnchor.constraint(equalTo: guide.bottomAnchor, constant: -16)
+            column.topAnchor.constraint(equalTo: scroll.contentLayoutGuide.topAnchor, constant: 22),
+            column.bottomAnchor.constraint(equalTo: scroll.contentLayoutGuide.bottomAnchor, constant: -22),
+            column.widthAnchor.constraint(equalTo: scroll.frameLayoutGuide.widthAnchor)
         ])
-        column.distribution = .fill
-        // Spare height goes above and below the column's content rather than into it.
-        let topSpace = UIView(), bottomSpace = UIView()
-        column.insertArrangedSubview(topSpace, at: 0)
-        column.addArrangedSubview(bottomSpace)
-        topSpace.heightAnchor.constraint(equalTo: bottomSpace.heightAnchor).isActive = true
-        for view in column.arrangedSubviews where view !== topSpace && view !== bottomSpace {
-            view.setContentHuggingPriority(.required, for: .vertical)
-            view.setContentCompressionResistancePriority(.required, for: .vertical)
-        }
+        // Debug output is opt-in and never takes space from the launch controls.
+        log.translatesAutoresizingMaskIntoConstraints = false
+        addSubview(log)
+        NSLayoutConstraint.activate([
+            log.leadingAnchor.constraint(equalTo: scroll.trailingAnchor, constant: 24),
+            log.trailingAnchor.constraint(equalTo: safe.trailingAnchor, constant: -16),
+            log.topAnchor.constraint(equalTo: safe.topAnchor, constant: 20),
+            log.bottomAnchor.constraint(equalTo: safe.bottomAnchor, constant: -20)
+        ])
     }
     required init?(coder: NSCoder) { fatalError("init(coder:) is not used") }
 
-    /// Update language-specific titles in place without touching downloaded game files or layout.
-    private let scroll = UIScrollView()
-    private let secondary = UIStackView()
     func refreshLanguage() {
-        brandTitle.text = AppLanguage.choose("GTA V Port")
-        brandSubtitle.text = AppLanguage.choose("Fan project · plays your own game files") + " · \(Theme.appVersion)"
-        mapTitle.text = AppLanguage.choose("Map")
+        brandTitle.text = "GTA V MOBILE"
+        brandSubtitle.text = "Forked by zenyical (original iOS port by: kevinerikjs)"
         playButton.configuration?.title = AppLanguage.choose("Play")
-        // The top-right buttons are icons in every language (long titles overlapped the column, GTA-47);
-        // their names stay for VoiceOver.
-        settingsButton.configuration?.title = nil
-        layoutButton.configuration?.title = nil
-        telegramButton.configuration?.title = nil
-        settingsButton.accessibilityLabel = AppLanguage.choose("Settings")
-        layoutButton.accessibilityLabel = AppLanguage.choose("Controls layout")
-        for (index, card) in modeCards.enumerated() {
-            card.setTitle(GameMode.allCases[index].title)
-        }
-        for (i, chip) in mapChips.enumerated() {
-            chip.configuration?.title = GameSettings.sandboxMapTitles[i]
-        }
+        settingsButton.configuration?.title = AppLanguage.choose("Settings")
+        layoutButton.configuration?.title = AppLanguage.choose("Controls layout")
+        for (index, card) in modeCards.enumerated() { card.setTitle(GameMode.allCases[index].title) }
     }
 
     private func buildFilesCard() {
@@ -259,24 +194,6 @@ final class HomeView: UIView {
         filesIcon.image = symbol.isEmpty ? nil : UIImage(systemName: symbol)
         filesIcon.tintColor = color
         filesCard.accessibilityLabel = AppLanguage.interpolate(AppLanguage.choose("Game files: {arg0}. {arg1}"), [title, detail])
-    }
-
-    /// Marks the chosen mode (nil: none yet) and shows its description.
-    /// Shows the map choice (Sandbox) instead of the mode description, with `index` selected.
-    func setMap(_ index: Int, visible: Bool, enabled: Bool, testMapAvailable: Bool = true) {
-        mapRow.isHidden = !visible
-        modeDetail.isHidden = visible
-        for (i, chip) in mapChips.enumerated() {
-            let selected = i == index
-            // The GTA VI test map greys out when the game files don't include it.
-            chip.isEnabled = enabled && (i != 1 || testMapAvailable)
-            chip.configuration?.baseForegroundColor = selected ? Theme.accent : Theme.text
-            chip.configuration?.background.backgroundColor = selected ? Theme.accent.withAlphaComponent(0.18) : UIColor(white: 1, alpha: 0.1)
-            chip.configuration?.background.strokeColor = selected ? Theme.accent : .clear
-            chip.configuration?.background.strokeWidth = selected ? 1.5 : 0
-            chip.accessibilityTraits = selected ? [.button, .selected] : .button
-            chip.accessibilityLabel = AppLanguage.choose("Sandbox map: ") + GameSettings.sandboxMapTitles[i]
-        }
     }
 
     func setMode(_ index: Int?, detail: String, enabled: Bool) {

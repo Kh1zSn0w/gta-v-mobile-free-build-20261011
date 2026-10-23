@@ -122,7 +122,7 @@ enum GraphicsConfiguration {
         return Int(min(screen.nativeBounds.width, screen.nativeBounds.height))
     }
     /// Resolutions offered in Settings, besides "Auto" (the detail preset's own).
-    static var resolutionChoices: [Int] { [540, 720, 900, 1080].filter { $0 < nativeHeight } + [nativeHeight] }
+    static var resolutionChoices: [Int] { [360, 432, 540, 720, 900, 1080].filter { $0 < nativeHeight } + [nativeHeight] }
     /// Width/height to render at: the chosen height (or the preset's), shaped like the screen so the
     /// picture is not stretched.
     static func size(for preset: GraphicsPreset, renderHeight: Int, screen: CGSize, matchScreenShape: Bool) -> (Int, Int) {
@@ -137,9 +137,9 @@ enum GraphicsConfiguration {
     /// Pass the chosen settings to the engine. Call before PGStartEngine.
     static func apply(_ settings: GameSettings, screen: CGSize, tv: Bool = false) -> String {
         let preset = settings.graphicsPreset
-        let (width, height) = size(for: preset, renderHeight: settings.renderHeight, screen: screen, matchScreenShape: tv || settings.matchScreenShape)
+        let (width, height) = size(for: preset, renderHeight: preset == .lite ? 360 : settings.renderHeight, screen: screen, matchScreenShape: tv || settings.matchScreenShape)
         // The player's own details replace the preset's (GTA-84).
-        let overrides = settings.graphicsOverrides
+        let overrides = preset == .lite ? [:] : settings.graphicsOverrides
         let resourcePreset: GraphicsPreset = preset == .extreme && settings.tier.memoryLimitMB < 5000 ? .balanced : preset
         var baseOptions = resourcePreset.engineOptions
         if settings.sharperWorld && [.balanced, .quality, .ultra, .extreme].contains(resourcePreset) {
@@ -161,9 +161,10 @@ enum GraphicsConfiguration {
         let own = GraphicsDetail.all.compactMap { detail in overrides[detail.option].map { "\(detail.option) \($0)" } }
         // The engine and renderer read PG_LITE when they start, after this. The Lite build always sets it.
         if preset == .lite { setenv("PG_LITE", "1", 1) } else if !Theme.isLite { unsetenv("PG_LITE") }
-        PGSetTextureClarity(UInt32(settings.textureClarity.rawValue))
+        GameSettings.applyExperimentalSwitches()
+        PGSetTextureClarity(preset == .lite ? 0 : UInt32(settings.textureClarity.rawValue))
         PGSetMemoryCap(Int32(settings.memoryCapMB > 0 ? settings.memoryCapMB : preset == .extreme ? 8192 : 0))
-        PGSetSharperUpscaling(settings.sharperUpscaling ? 1 : 0)
+        PGSetSharperUpscaling(preset != .lite && settings.sharperUpscaling ? 1 : 0)
         var pointers = options.map { strdup($0) }
         defer { pointers.forEach { free($0) } }
         pointers.withUnsafeMutableBufferPointer { buffer in

@@ -13,7 +13,7 @@ enum LauncherSection: String, CaseIterable {
 enum LauncherStyle {
     static let background = UIColor(red: 0.035, green: 0.043, blue: 0.052, alpha: 1)
     static let surface = UIColor(red: 0.085, green: 0.095, blue: 0.11, alpha: 1)
-    static let accent = UIColor(red: 1.0, green: 0.55, blue: 0.49, alpha: 1)
+    static let accent = UIColor(red: 0.56, green: 0.78, blue: 0.75, alpha: 1)
     static let secondary = UIColor(white: 0.70, alpha: 1)
 
     static func configure(_ navigation: UINavigationController) {

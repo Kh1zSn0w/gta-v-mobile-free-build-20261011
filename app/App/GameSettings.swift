@@ -40,29 +40,6 @@ final class GameSettings {
         set { defaults.set(newValue.rawValue, forKey: "textureClarity") }
     }
 
-    var gyroAim: GyroAimMode {
-        get { GyroAimMode(rawValue: defaults.integer(forKey: "gyroAim")) ?? .off }
-        set { defaults.set(newValue.rawValue, forKey: "gyroAim") }
-    }
-    var gyroSensitivity: Double {
-        get { defaults.object(forKey: "gyroSensitivity") as? Double ?? 1.0 }
-        set { defaults.set(newValue, forKey: "gyroSensitivity") }
-    }
-    var gyroInvertY: Bool {
-        get { defaults.bool(forKey: "gyroInvertY") }
-        set { defaults.set(newValue, forKey: "gyroInvertY") }
-    }
-
-    var tiltSteer: TiltSteerMode {
-        get { TiltSteerMode(rawValue: defaults.integer(forKey: "tiltSteer")) ?? .off }
-        set { defaults.set(newValue.rawValue, forKey: "tiltSteer") }
-    }
-    /// Phone rotation, in degrees, for full steering lock.
-    var tiltFullLock: Double {
-        get { defaults.object(forKey: "tiltFullLock") as? Double ?? 22 }
-        set { defaults.set(min(max(newValue, 10), 45), forKey: "tiltFullLock") }
-    }
-
     /// Your own server with the game files, e.g. https://my-pc.tailnet.ts.net.
     /// A cloud build can bake in a default (Info.plist PGDefaultAssetServer).
     var assetServer: String {
@@ -82,7 +59,7 @@ final class GameSettings {
         get { defaults.object(forKey: "controlScale") as? Double ?? 1.0 }
         set { defaults.set(min(max(newValue, 0.7), 1.5), forKey: "controlScale") }
     }
-    // Independent experimental controls; original v1.3 stick is the default.
+    // Touch camera is swipe-only. Keep stored enum values compatible with older installs.
     // Do not conflate swipes with input device classification: the mouse path
     // is intentionally tested as a separate option, not assumed to retain auto-aim.
     enum CameraTouchMode: Int, CaseIterable {
@@ -101,27 +78,15 @@ final class GameSettings {
     var cameraTouchMode: CameraTouchMode {
         // Swipe always drives the game's mouse: the controller swipe felt choppy, worst on the
         // vertical axis, because a finger can only tilt the stick up to the game's max turn speed.
-        get {
-            #if targetEnvironment(simulator)
-            // Tests: --test-camera-mode <0 stick, 2 swipe> for this run only.
-            let arguments = ProcessInfo.processInfo.arguments
-            if let i = arguments.firstIndex(of: "--test-camera-mode"), i + 1 < arguments.count { return arguments[i + 1] == "0" ? .stick : .swipeMouse }
-            #endif
-            return (CameraTouchMode(rawValue: defaults.integer(forKey: "cameraTouchMode")) ?? .stick) == .stick ? .stick : .swipeMouse
-        }
-        set {
-            defaults.set(newValue.rawValue, forKey: "cameraTouchMode")
-            // Remember the chosen swipe variant while the user switches to the
-            // controller tab. Never overwrite it when selecting the stick.
-            if newValue != .stick { defaults.set(newValue.rawValue, forKey: "preferredSwipeMode") }
-        }
+        get { .swipeMouse }
+        set { defaults.set(CameraTouchMode.swipeMouse.rawValue, forKey: "cameraTouchMode") }
     }
     var preferredSwipeMode: CameraTouchMode {
         let saved = CameraTouchMode(rawValue: defaults.integer(forKey: "preferredSwipeMode"))
         return saved == .swipePad ? .swipePad : .swipeMouse
     }
     static let swipeSensitivityMinimum = 0.2
-    static let swipeSensitivityMaximum = 15.0
+    static let swipeSensitivityMaximum = 40.0
     static let swipeSensitivityDefault = 3.0
     var swipeLookSensitivity: Double {
         get { defaults.object(forKey: "swipeLookSensitivity") as? Double ?? Self.swipeSensitivityDefault }
@@ -133,7 +98,7 @@ final class GameSettings {
     }
 
     // Swipe moves the game's mouse by relative pixels; 1x was far too slow on a phone screen.
-    static let mouseSensitivityDefault = 5.0
+    static let mouseSensitivityDefault = 7.0
     var mouseLookSensitivity: Double {
         get { defaults.object(forKey: "mouseLookSensitivity") as? Double ?? Self.mouseSensitivityDefault }
         set { defaults.set(min(max(newValue, Self.swipeSensitivityMinimum), Self.swipeSensitivityMaximum), forKey: "mouseLookSensitivity") }
@@ -165,13 +130,6 @@ final class GameSettings {
     }
     static var targetingTitles: [String] { [AppLanguage.choose("Traditional lock-on"), AppLanguage.choose("Assisted aim"), AppLanguage.choose("Assisted free aim"), AppLanguage.choose("Free aim")] }
 
-    /// nil until the player has chosen on the launch screen.
-    /// Sandbox map: 0 the GTA V map, 1 the test level the game files include (env_test).
-    var sandboxMap: Int {
-        get { defaults.integer(forKey: "sandboxMap") == 1 ? 1 : 0 }
-        set { defaults.set(newValue == 1 ? 1 : 0, forKey: "sandboxMap") }
-    }
-    static var sandboxMapTitles: [String] { ["GTA V", AppLanguage.choose("GTA VI test map")] }
     var gameModeChoice: GameMode? {
         get { (defaults.object(forKey: "gameMode") as? Int).flatMap(GameMode.init) }
         set { defaults.set(newValue?.rawValue, forKey: "gameMode") }
@@ -269,6 +227,19 @@ final class GameSettings {
     static func applyExperimentalSwitches() {
         let settings = GameSettings.shared
         func off(_ name: String, _ value: String) { if getenv(name) == nil { setenv(name, value, 1) } }
+        if settings.graphicsPreset == .lite {
+            setenv("PG_LITE", "1", 1)
+            setenv("PG_LITE_DENSITY", "0.15", 1)
+            setenv("PG_LITE_LOD", "0.40", 1)
+            setenv("PG_SMALL_ENGINE_HEAPS", "1", 1)
+            setenv("PG_ASTC_BC3", "1", 1)
+            setenv("PG_BIG_MIP_SKIP", "256", 1)
+            setenv("PG_GUARD_BAND_MB", "32", 1)
+            setenv("PG_GUARD_POOL_ROOM", "1", 1)
+            setenv("PG_ENGINE_QOS", "user", 1)
+            setenv("PG_QUERY_COMMIT_MS", "0", 1)
+            return
+        }
         if !settings.smarterTextureLoading { off("PG_GUARD_POOL_ROOM", "0") }
         if !settings.lighterBigTextures { off("PG_BIG_MIP_SKIP", "0") }
         if !settings.fastEngineThreads { off("PG_ENGINE_QOS", "off"); off("PG_QUERY_COMMIT_MS", "2") }
@@ -333,6 +304,7 @@ final class GameSettings {
     /// Frame rate cap: 30, 60, or 0 for unlocked (up to the screen's refresh rate, 120 on ProMotion).
     var frameRateCap: Int {
         get {
+            if graphicsPreset == .lite { return 30 }
             if let cap = defaults.object(forKey: "frameRateCap") as? Int, [0, 30, 60].contains(cap) { return cap }
             if let legacy = defaults.object(forKey: "frameRateOption") as? Int { return legacy == 120 ? 0 : legacy }
             return defaults.bool(forKey: "sixtyFPS") ? 60 : 30 // older versions stored a 60 FPS switch

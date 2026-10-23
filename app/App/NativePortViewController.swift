@@ -112,9 +112,7 @@ final class NativePortViewController: UIViewController, MTKViewDelegate {
     private var logFile: URL?
     private let touchControls = TouchControlsView(frame: .zero)
     private let modKeys = ModKeysView(frame: .zero)
-    private let gyro = GyroInput()
     private var engineStarted = false
-    private let playStats = PlayStats()
     private var bootedPreset = GameSettings.shared.graphicsPreset
     private var bootedMode: GameMode?
     private var stableTimer: Timer?
@@ -234,11 +232,6 @@ final class NativePortViewController: UIViewController, MTKViewDelegate {
         home.settingsButton.addAction(UIAction { [weak self] _ in self?.showSettings() }, for: .touchUpInside)
         home.layoutButton.addAction(UIAction { [weak self] _ in self?.showLayoutEditor() }, for: .touchUpInside)
         home.onFiles = { [weak self] in self?.showGameFiles() }
-        home.onMap = { [weak self] index in
-            guard let self, !self.engineStarted else { return }
-            GameSettings.shared.sandboxMap = index
-            self.refreshModeChoice()
-        }
         home.onMode = { [weak self] index in
             guard let self, !self.engineStarted else { return }
             GameSettings.shared.gameMode = GameMode.allCases[index]
@@ -454,7 +447,6 @@ final class NativePortViewController: UIViewController, MTKViewDelegate {
     }
 
     private func handleLine(_ line: String, written: Bool, show: Bool) {
-        playStats.line(line)
         if line.hasPrefix("ASSET_WARM_PROGRESS ") {
             let parts = line.split(separator: " ")
             if parts.count >= 3 {
@@ -578,9 +570,6 @@ final class NativePortViewController: UIViewController, MTKViewDelegate {
     private func refreshModeChoice() {
         let choice = GameSettings.shared.gameModeChoice
         home.setMode(choice.flatMap { GameMode.allCases.firstIndex(of: $0) }, detail: choice?.detail ?? AppLanguage.choose("Choose Story mode or Sandbox to play."), enabled: !engineStarted)
-        let testMap = GameFolder.isChosen && GameFolder.testMapAvailable
-        if !testMap && GameSettings.shared.sandboxMap == 1 { GameSettings.shared.sandboxMap = 0 }
-        home.setMap(GameSettings.shared.sandboxMap, visible: choice == .sandbox, enabled: !engineStarted, testMapAvailable: testMap)
         updatePlayEnabled()
     }
 
@@ -604,18 +593,16 @@ final class NativePortViewController: UIViewController, MTKViewDelegate {
         home.layoutButton.isHidden = true
         engineStarted = true
         ModInstaller.gameRunning = true
-        playStats.gameStarting(GameSettings.shared.gameMode, sandboxMap: GameSettings.shared.sandboxMap)
         refreshModeChoice()
         let mode = GameSettings.shared.gameMode
         bootedMode = mode
-        let testMap = mode == .sandbox && GameSettings.shared.sandboxMap == 1
-        PGSetStartMode(testMap ? 3 : Int32(mode.rawValue))
+        PGSetStartMode(Int32(mode.rawValue))
         let minimap = GameSettings.shared.minimapLayout
         PGSetMinimapLayout(minimap.dx, minimap.dy, minimap.scale)
         PGSetSubtitleRaise(GameSettings.shared.subtitlesAboveHomeBar ? 0.05 : 0)
         TouchControlsView.minimapLayout = minimap
         placeFPSLabel()
-        appendLog("Game mode: \(mode.title)\(mode == .sandbox ? " on " + GameSettings.sandboxMapTitles[GameSettings.shared.sandboxMap] : "")")
+        appendLog("Game mode: \(mode.title)")
         bootedPreset = GameSettings.shared.graphicsPreset
         // A TV already connected gets the picture from the start, in its own shape.
         let tvScreen = ProcessInfo.processInfo.arguments.contains("--no-tv") ? nil : UIScreen.screens.first(where: { $0 != UIScreen.main })
@@ -1201,14 +1188,12 @@ final class NativePortViewController: UIViewController, MTKViewDelegate {
             if mission != lastStoryMission { lastStoryMission = mission; appendLog("Story: \(mission.isEmpty ? "no mission running" : "mission \(mission) running")") }
             if replay != lastReplayState { if replay == 1 { appendLog("Story: Mission failed screen") }; lastReplayState = replay }
         }
-        playStats.health(fps: Double(PGRenderedFramesPerSecond()), thermal: ProcessInfo.processInfo.thermalState.rawValue, mission: story ? String(cString: name) : nil, failedScreen: replay == 1)
         appendLog(String(format: "Health: memory %d MB used, %d MB free · guard stopped streaming growth %llu×, asked to evict %llu× · reads %llu (%.1f MB, avg %.1f ms, slow %llu, errors %llu) · %.0f FPS · thermal %@ · CPU %.2f cores · GPU %.1f ms · streaming %llu waiting (%llu over 10 s), loaded %llu (median %llu ms, 95%% %llu ms), unloaded %llu · at %.0f, %.0f, %.0f",
                          used, free, d[0], d[7], d[1], Double(d[2]) / 1_048_576, avgMS, d[5], d[3], PGRenderedFramesPerSecond(), thermal, cores, gpuMS, stream[0], stream[1], stream[2], stream[3], stream[4], stream[5], position.0, position.1, position.2))
     }
 
     @objc private func leftApp() {
         if stableTimer?.isValid != false { GameSettings.shared.markBootInterrupted() }
-        playStats.sessionEnded()
     }
 
     /// The touch-controls layout editor (pre-game, or from Settings).
@@ -1243,20 +1228,16 @@ final class NativePortViewController: UIViewController, MTKViewDelegate {
         title.font = Theme.display(22, .heavy)
         title.textColor = .white
         let info = UILabel()
-        info.text = message ?? AppLanguage.choose("Please send the log so this can be fixed, then close the app and open it again to keep playing.")
+        info.text = message ?? AppLanguage.choose("Close and reopen the app to continue. If this happens repeatedly, select Performance mode before playing.")
         info.numberOfLines = 0
         info.textAlignment = .center
         info.font = .preferredFont(forTextStyle: .subheadline)
         info.textColor = UIColor(white: 1, alpha: 0.8)
-        var sendStyle = UIButton.Configuration.filled()
-        sendStyle.title = AppLanguage.choose("Send log to the developer")
-        sendStyle.cornerStyle = .large
-        let send = UIButton(configuration: sendStyle, primaryAction: UIAction { [weak self] _ in self?.sendLogAfterStop() })
         var settingsStyle = UIButton.Configuration.gray()
         settingsStyle.title = AppLanguage.choose("Settings")
         settingsStyle.cornerStyle = .large
         let settings = UIButton(configuration: settingsStyle, primaryAction: UIAction { [weak self] _ in self?.showSettings() })
-        let stack = UIStackView(arrangedSubviews: [title, info, send, settings])
+        let stack = UIStackView(arrangedSubviews: [title, info, settings])
         stack.axis = .vertical
         stack.alignment = .center
         stack.spacing = 14
@@ -1278,26 +1259,6 @@ final class NativePortViewController: UIViewController, MTKViewDelegate {
             info.widthAnchor.constraint(equalTo: stack.widthAnchor),
         ])
         stoppedPanel = panel
-        appendLog("The engine stopped: showing Send log and Settings.")
-        #if targetEnvironment(simulator)
-        // Test: --send-log-after-stop opens the Send log screen from the panel.
-        if ProcessInfo.processInfo.arguments.contains("--send-log-after-stop") {
-            DispatchQueue.main.asyncAfter(deadline: .now() + 2) { self.sendLogAfterStop() }
-        }
-        #endif
-    }
-    private func sendLogAfterStop() {
-        guard presentedViewController == nil else { return }
-        let screen = SendLogViewController()
-        screen.finished = { [weak self] title, message in
-            let alert = UIAlertController(title: title, message: message, preferredStyle: .alert)
-            alert.addAction(UIAlertAction(title: AppLanguage.choose("OK"), style: .default))
-            self?.present(alert, animated: true)
-        }
-        let navigation = UINavigationController(rootViewController: screen)
-        navigation.modalPresentationStyle = .fullScreen
-        present(navigation, animated: true)
-        appendLog("Send log opened after the engine stopped.")
     }
 
     private func showSettings() {
@@ -1319,6 +1280,7 @@ final class NativePortViewController: UIViewController, MTKViewDelegate {
         }
         let navigation = UINavigationController(rootViewController: controller)
         Theme.styleNavigation(navigation)
+        navigation.modalPresentationStyle = .fullScreen
         present(navigation, animated: true)
     }
     /// Cheats › Spawn vehicle: the game thread spawns it once play resumes (NativeVehicleSpawn.inc).
@@ -1409,13 +1371,12 @@ final class NativePortViewController: UIViewController, MTKViewDelegate {
         let settings = GameSettings.shared
         // On a TV the picture takes the TV's shape.
         let surface = tvWindow?.bounds.size ?? view.bounds.size
-        let (width, height) = GraphicsConfiguration.size(for: bootedPreset, renderHeight: settings.renderHeight, screen: surface, matchScreenShape: tvWindow != nil || settings.matchScreenShape)
+        let (width, height) = GraphicsConfiguration.size(for: bootedPreset, renderHeight: bootedPreset == .lite ? 360 : settings.renderHeight, screen: surface, matchScreenShape: tvWindow != nil || settings.matchScreenShape)
         PGSetBackBufferSize(Int32(width), Int32(height))
         appendLog("Graphics: live resize to \(width)×\(height)")
     }
     @objc private func releaseTouchControls() {
         touchControls.reset(publish: false)
-        gyro.setRunning(false, orientation: .landscapeRight)
         lastControllerPoll = nil
         #if targetEnvironment(simulator)
         simulatorKeys.removeAll()
@@ -1684,42 +1645,6 @@ final class NativePortViewController: UIViewController, MTKViewDelegate {
         } else {
             inputTestLabel.isHidden = true
             lastDeviceDiagnostic = ""
-        }
-        // Optional gyro: phone rotation adds to the right stick.
-        let settings = GameSettings.shared
-        let onFoot = vehicle == 0
-        let driving = touchControls.context.driving
-        let tiltWanted = touchActive && driving && settings.tiltSteer != .off
-        let gyroWanted = touchActive && ((settings.gyroAim != .off && !touchControls.flyingWithRightStick && touchControls.context != .menu) || tiltWanted)
-        let orientation = view.window?.windowScene?.interfaceOrientation ?? .landscapeRight
-        gyro.setRunning(gyroWanted, orientation: orientation)
-        if tiltWanted, let angle = gyro.steeringAngle() {
-            // The neutral angle is however the phone is held on entering.
-            if tiltSince == nil { tiltSince = now }
-            if tiltNeutral == nil, now - (tiltSince ?? now) > 0.15 { tiltNeutral = angle }
-            if let neutral = tiltNeutral {
-                var degrees = (angle - neutral) * 180 / .pi
-                degrees = abs(degrees) < 1.5 ? 0 : degrees - copysign(1.5, degrees)
-                let raw = max(-1, min(1, degrees / settings.tiltFullLock))
-                let curved = copysign(pow(abs(raw), 1.4), raw)
-                tiltSmoothed += (curved - tiltSmoothed) * min(1, elapsed / 0.06)
-                let fadeIn = min(1, (now - (tiltSince ?? now) - 0.15) / 0.3)
-                let tilt = Float(tiltSmoothed * max(0, fadeIn))
-                if settings.tiltSteer == .full && abs(state.leftX) < 0.05 { state.leftX = tilt }
-                else if settings.tiltSteer == .assist { state.leftX = max(-1, min(1, state.leftX + tilt * 0.6)) }
-            }
-        } else if !driving {
-            tiltNeutral = nil; tiltSince = nil; tiltSmoothed = 0
-        }
-        if gyroWanted && settings.gyroAim != .off {
-            let aiming = touchControls.aiming || state.leftTrigger > 0.1
-            let active = aiming || (settings.gyroAim == .always && onFoot)
-            let rate = gyro.rate(active: active, elapsed: elapsed)
-            // About 2 rad/s of phone rotation is a full stick at sensitivity 1.
-            let gain = 350 * settings.gyroSensitivity
-            let invert: CGFloat = settings.gyroInvertY ? -1 : 1
-            state.rightX = max(-1, min(1, state.rightX + TouchControlsView.lookAxis(rate.dx * gain)))
-            state.rightY = max(-1, min(1, state.rightY - TouchControlsView.lookAxis(rate.dy * gain * invert)))
         }
         // A controller's right stick picks on the radio wheel (its own inputs have no controller
         // binding in this build; see PGSetRadioWheelDirection). The camera ignores the stick meanwhile.

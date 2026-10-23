@@ -64,12 +64,6 @@ final class DebugChannel {
     private func run(_ line: String) -> String {
         let words = line.split(separator: " ").map(String.init)
         guard let command = words.first else { return Self.json(["ok": false, "error": "empty"]) }
-        if command == "sendlog" {
-            let done = DispatchSemaphore(value: 0); var reply: (String, String) = ("", "")
-            LogUploader.send(note: words.dropFirst(2).joined(separator: " "), includeSave: words.count > 1 && words[1] == "1") { reply = $0; done.signal() }
-            _ = done.wait(timeout: .now() + 90)
-            return Self.json(["ok": true, "title": reply.0, "detail": reply.1])
-        }
         if ["ui", "touch", "tap", "drag", "pad", "mark", "resize"].contains(command) {
             var reply: [String: Any] = [:]
             DispatchQueue.main.sync { reply = self.runOnMain(command, Array(words.dropFirst())) }

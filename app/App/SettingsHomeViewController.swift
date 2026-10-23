@@ -30,12 +30,12 @@ final class SettingsHomeViewController: UITableViewController {
                 AppLanguage.interpolate(AppLanguage.choose("{arg0}, resolution, frame rate, memory"), [settings.graphicsPreset.title])
             }, sections: [.graphics]),
             Category(icon: "gamecontroller", title: AppLanguage.choose("Controls"), summary: {
-                AppLanguage.choose("Camera, buttons, layout, gyro, controller and keyboard")
-            }, sections: [.controls, .gyro]),
+                AppLanguage.choose("Swipe camera, sensitivity, buttons and controller")
+            }, sections: [.controls]),
         ]
         if engineRunning {
-            list.append(Category(icon: "wand.and.stars", title: AppLanguage.choose("Cheats"), summary: {
-                AppLanguage.choose("Vehicles, repairs, weather, time, money and more")
+            list.append(Category(icon: "wand.and.stars", title: "Trainer", summary: {
+                AppLanguage.choose("Player, vehicles, world and Story cheats")
             }, sections: [.cheats]))
         }
         list.append(Category(icon: "globe", title: engineRunning ? AppLanguage.choose("Language") : AppLanguage.choose("Game mode and language"), summary: {
@@ -51,7 +51,7 @@ final class SettingsHomeViewController: UITableViewController {
             return count == 0 ? AppLanguage.choose("Install car, skin and script mods") : AppLanguage.interpolate(AppLanguage.choose("{arg0} mods on"), [String(count)])
         }, sections: [], page: { ModsViewController() }))
         list.append(Category(icon: "iphone", title: AppLanguage.choose("This device"), summary: {
-            AppLanguage.choose("Memory, logs and the Telegram group")
+            AppLanguage.choose("Memory budget and engine options")
         }, sections: [.device]))
         return list
     }
@@ -122,6 +122,17 @@ final class SettingsHomeViewController: UITableViewController {
 
     private func open(_ category: Category, animated: Bool) {
         if let page = category.page { navigationController?.pushViewController(page(), animated: animated); return }
+        if category.sections == [.cheats] {
+            let dashboard = TrainerHomeViewController(runningMode: runningMode)
+            dashboard.configure = { [weak self] page in
+                page.cheatSelected = self?.cheatSelected
+                page.moneyEntered = self?.moneyEntered
+                page.vehicleSelected = self?.vehicleSelected
+                page.nativeCheatSelected = self?.nativeCheatSelected
+            }
+            navigationController?.pushViewController(dashboard, animated: true)
+            return
+        }
         let page = SettingsViewController(engineRunning: engineRunning, runningMode: runningMode, title: category.title, sections: category.sections)
         page.resolutionChanged = resolutionChanged
         page.controlsChanged = controlsChanged

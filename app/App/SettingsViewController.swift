@@ -25,38 +25,20 @@ final class SettingsViewController: UITableViewController {
     /// Cheats rows: Spawn vehicle, Set money, the NativeCheatGroup rows, then the controller story cheats.
     private var storyCheatStart: Int { 2 + NativeCheatGroup.all.count }
 
-    enum Section: Int, CaseIterable { case language, mode, graphics, controls, cheats, gyro, files, device }
+    enum Section: Int, CaseIterable { case language, mode, graphics, controls, cheats, files, device }
     /// The sections this page shows (SettingsHomeViewController opens one page per category).
     private let sections: Set<Section>
-    // The switch controls both the visible settings group and the active
-    // camera input. It does NOT spoof the engine's last-input-device flag:
-    // that flag is shared by the game's own aim-assist logic.
-    private enum ControlsTab: Int { case stick = 0, swipe = 1 }
+    private let trainerRows: [Int]?
     private enum ControlsRow {
-        case tab, swipeLook, swipeAim, stickLook, stickAim
+        case swipeLook, swipeAim
         case targeting, fireAlsoAims, sprintButton, steeringButtons, airplaneRightStick, buttonSize, buttonOpacity, editLayout, minimap
         case hideTouchWithController, keyboardMouse, inputState, safeZone, vehicleCamera, viewDistance, textureClarity, sharperWorld
     }
-    private var controlsTab: ControlsTab {
-        settings.cameraTouchMode == .stick ? .stick : .swipe
-    }
     /// The camera choice only swaps its two speed rows; every other control setting is always there.
     private var controlsRows: [ControlsRow] {
-        let camera: [ControlsRow] = controlsTab == .stick ? [.stickLook, .stickAim] : [.swipeLook, .swipeAim]
-        return [.tab] + camera + [.targeting, .fireAlsoAims, .sprintButton, .steeringButtons, .airplaneRightStick, .buttonSize, .buttonOpacity,
+        let camera: [ControlsRow] = [.swipeLook, .swipeAim]
+        return camera + [.targeting, .fireAlsoAims, .sprintButton, .steeringButtons, .airplaneRightStick, .buttonSize, .buttonOpacity,
                                   .editLayout, .minimap, .safeZone, .hideTouchWithController, .keyboardMouse, .vehicleCamera, .viewDistance, .textureClarity, .sharperWorld]
-    }
-
-    @objc private func controlsTabChanged(_ sender: UISegmentedControl) {
-        if sender.selectedSegmentIndex == ControlsTab.swipe.rawValue {
-            settings.cameraTouchMode = .swipeMouse
-        } else {
-            settings.cameraTouchMode = .stick
-        }
-        controlsChanged?()
-        UIView.performWithoutAnimation {
-            reload(.controls)
-        }
     }
 
     private let preloader = AssetPreloader.shared
@@ -66,8 +48,9 @@ final class SettingsViewController: UITableViewController {
     private var fileStateKey = ""
     private var fileMessage: String?
 
-    init(engineRunning: Bool, runningMode: GameMode? = nil, title pageTitle: String? = nil, sections: Set<Section> = Set(Section.allCases)) {
+    init(engineRunning: Bool, runningMode: GameMode? = nil, title pageTitle: String? = nil, sections: Set<Section> = Set(Section.allCases), trainerRows: [Int]? = nil) {
         self.sections = sections
+        self.trainerRows = trainerRows
         self.engineRunning = engineRunning
         self.runningMode = engineRunning ? runningMode : nil
         self.bootPreset = GameSettings.shared.graphicsPreset
@@ -147,7 +130,7 @@ final class SettingsViewController: UITableViewController {
     }
 
     /// Game mode: Story, Sandbox, the Sandbox map (Sandbox only), then Import a Story save.
-    private var importSaveRow: Int { GameMode.allCases.count + (settings.gameModeChoice == .sandbox ? 1 : 0) }
+    private var importSaveRow: Int { GameMode.allCases.count }
 
     override func tableView(_ tableView: UITableView, numberOfRowsInSection section: Int) -> Int {
         switch sectionKind(section) {
@@ -155,25 +138,17 @@ final class SettingsViewController: UITableViewController {
         case .mode: return engineRunning ? 0 : importSaveRow + 1
         case .graphics: return engineRunning ? Self.liveGraphicsRows.count : settings.tier.allowed.count + 7 + GraphicsDetail.all.count
         case .controls: return controlsRows.count
-        case .cheats: return engineRunning ? StoryCheats.all.count + storyCheatStart : 0
-        case .gyro: return (settings.gyroAim == .off ? 1 : 3) + (settings.tiltSteer == .off ? 1 : 2)
+        case .cheats: return engineRunning ? (trainerRows?.count ?? (StoryCheats.all.count + storyCheatStart)) : 0
         case .files: return engineRunning ? 0 : fileRows.count
-        case .device: return 9
+        case .device: return 6
         case .language: return 1
         }
-    }
-
-    override func tableView(_ tableView: UITableView, heightForRowAt indexPath: IndexPath) -> CGFloat {
-        // The full-width segmented control needs more space than a standard row.
-        if sectionKind(indexPath.section) == .controls,
-           controlsRows[indexPath.row] == .tab { return 58 }
-        return UITableView.automaticDimension
     }
 
     override func tableView(_ tableView: UITableView, titleForHeaderInSection section: Int) -> String? {
         if sectionKind(section) == .cheats, !engineRunning { return nil }
         if engineRunning, [.mode, .files].contains(sectionKind(section)) { return nil }
-        return [AppLanguage.choose("Language"), AppLanguage.choose("Game mode"), AppLanguage.choose("Graphics"), AppLanguage.choose("Touch controls"), AppLanguage.choose("Cheats"), AppLanguage.choose("Gyro"), AppLanguage.choose("Game files"), AppLanguage.choose("This device")][sectionKind(section).rawValue]
+        return [AppLanguage.choose("Language"), AppLanguage.choose("Game mode"), AppLanguage.choose("Graphics"), AppLanguage.choose("Touch controls"), "Trainer", AppLanguage.choose("Game files"), AppLanguage.choose("This device")][sectionKind(section).rawValue]
     }
 
     /// Graphics rows that act during play: resolution, fill the screen, FPS counter, steady when hot,
@@ -192,30 +167,31 @@ final class SettingsViewController: UITableViewController {
             return text
         case .graphics:
             var text = AppLanguage.choose("Resolution changes apply right away. ")
-            text += engineRunning ? AppLanguage.choose("Preset and frame rate changes apply the next time you start the game.") : AppLanguage.choose("Presets apply when you press Play.")
+            text += engineRunning ? AppLanguage.choose("Preset and frame rate changes apply the next time you start the game.") : AppLanguage.choose("Presets apply when you press Play. Performance mode targets 30 FPS at 360p and overrides custom detail settings to reduce memory use; 2 GB support is experimental.")
             if settings.graphicsPreset != bootPreset && engineRunning { text += AppLanguage.interpolate(AppLanguage.choose(" Restart needed for {arg0}."), [String(describing: settings.graphicsPreset.title)]) }
             if settings.tier.risky(settings.graphicsPreset) { text += AppLanguage.choose(" Presets above the recommended one can run out of memory or overheat on this phone; if a launch fails, the game falls back automatically.") }
             return text
         case .controls:
-            return AppLanguage.choose("Switching tabs changes the camera control and the settings below. It does not force GTA V's in-game button prompt icons.")
+            return AppLanguage.choose("Swipe the right side to look around. Look and aiming have separate sensitivity sliders. Controllers keep their normal right stick.")
         case .cheats:
             return engineRunning
                 ? AppLanguage.choose("Switches and actions take effect when you're back in the game. Turn God mode and Never wanted off for missions that need damage or a police chase. The game's own cheats close this screen and press the buttons for you, which takes a few seconds. Works in Story mode and Sandbox.")
                 : nil
-        case .gyro:
-            return AppLanguage.choose("Move the phone to fine-tune your aim; turning your body turns the camera. Tilt steering turns the phone like a steering wheel: Assist adds fine control on top of the touch steering, Tilt to steer replaces it. The straight-ahead angle is however you hold the phone when you get in.")
         case .files: return filesFooter()
-        case .device: return AppLanguage.choose("GTA V Port") + " \(Theme.appVersion). " + AppLanguage.choose("Quote this version when you report a problem.")
+        case .device: return AppLanguage.choose("GTA V Port") + " \(Theme.appVersion). " + AppLanguage.choose("Personal edition by zenyical. Diagnostics stay on this device.")
         case .language:
             return AppLanguage.choose("Menus change right away. The game itself switches language the next time it starts.")
         }
     }
 
     override func tableView(_ tableView: UITableView, cellForRowAt indexPath: IndexPath) -> UITableViewCell {
+        let indexPath = trainerIndex(indexPath)
         let cell = UITableViewCell(style: .subtitle, reuseIdentifier: nil)
         cell.selectionStyle = .default
+        cell.backgroundColor = Theme.rowBackground
+        cell.tintColor = Theme.accent
         var content = cell.defaultContentConfiguration()
-        content.secondaryTextProperties.color = .secondaryLabel
+        content.secondaryTextProperties.color = Theme.secondaryText
         let presets = settings.tier.allowed
         switch sectionKind(indexPath.section) {
         case .mode where indexPath.row == importSaveRow:
@@ -223,24 +199,6 @@ final class SettingsViewController: UITableViewController {
             content.secondaryText = AppLanguage.choose("A save file from a PC or a friend (named like SGTA50000). It goes into a free save slot; load it in the game: Pause › Game › Load Game.")
             content.image = UIImage(systemName: "square.and.arrow.down")
             content.textProperties.color = view.tintColor ?? .systemBlue
-        case .mode where indexPath.row == GameMode.allCases.count:
-            // Sandbox only: which map.
-            content.text = AppLanguage.choose("Sandbox map")
-            content.secondaryText = settings.sandboxMap == 1 ? AppLanguage.choose("The test level that comes with the game files") : AppLanguage.choose("The full GTA V map")
-            let button = UIButton(configuration: .gray())
-            button.configuration?.title = GameSettings.sandboxMapTitles[settings.sandboxMap]
-            button.menu = UIMenu(children: GameSettings.sandboxMapTitles.enumerated().map { index, title in
-                UIAction(title: title, attributes: index == 1 && !(GameFolder.isChosen && GameFolder.testMapAvailable) ? .disabled : [],
-                         state: index == settings.sandboxMap ? .on : .off) { [weak self] _ in
-                    self?.settings.sandboxMap = index
-                    self?.gameModeChanged?()
-                    UIView.performWithoutAnimation { self?.reload(.mode) }
-                }
-            })
-            button.showsMenuAsPrimaryAction = true
-            button.sizeToFit()
-            cell.accessoryView = button
-            cell.selectionStyle = .none
         case .mode:
             let mode = GameMode.allCases[indexPath.row]
             content.text = mode.title + (mode == runningMode ? AppLanguage.choose(" (playing now)") : "")
@@ -356,30 +314,6 @@ final class SettingsViewController: UITableViewController {
         case .controls:
             cell.selectionStyle = .none
             switch controlsRows[indexPath.row] {
-            case .tab:
-                // Full-width, persistent-feeling tabs; the actual input mode
-                // changes only on an intentional tap, never during a swipe.
-                let tabs = UISegmentedControl(items: [
-                    AppLanguage.choose("Camera: right stick"),
-                    AppLanguage.choose("Camera: swipe")
-                ])
-                tabs.selectedSegmentIndex = controlsTab.rawValue
-                tabs.selectedSegmentTintColor = Theme.accent
-                // Keep both labels legible against the dark Settings sheet.
-                tabs.backgroundColor = UIColor(white: 1, alpha: 0.12)
-                tabs.setTitleTextAttributes([.foregroundColor: UIColor.white], for: .normal)
-                tabs.setTitleTextAttributes([.foregroundColor: UIColor.black], for: .selected)
-                tabs.accessibilityLabel = AppLanguage.choose("Camera control")
-                tabs.addTarget(self, action: #selector(controlsTabChanged(_:)), for: .valueChanged)
-                tabs.translatesAutoresizingMaskIntoConstraints = false
-                cell.contentView.addSubview(tabs)
-                NSLayoutConstraint.activate([
-                    tabs.leadingAnchor.constraint(equalTo: cell.contentView.layoutMarginsGuide.leadingAnchor),
-                    tabs.trailingAnchor.constraint(equalTo: cell.contentView.layoutMarginsGuide.trailingAnchor),
-                    tabs.topAnchor.constraint(equalTo: cell.contentView.topAnchor, constant: 11),
-                    tabs.bottomAnchor.constraint(equalTo: cell.contentView.bottomAnchor, constant: -11),
-                    tabs.heightAnchor.constraint(greaterThanOrEqualToConstant: 34)
-                ])
             case .swipeLook:
                 let mouse = settings.cameraTouchMode == .swipeMouse
                 let value = mouse ? settings.mouseLookSensitivity : settings.swipeLookSensitivity
@@ -435,16 +369,6 @@ final class SettingsViewController: UITableViewController {
                     }
                 })
                 button.sizeToFit(); cell.accessoryView = button
-            case .stickLook:
-                content.text = AppLanguage.choose("Camera stick speed")
-                content.secondaryText = AppLanguage.choose("Virtual right stick")
-                cell.accessoryView = sensitivitySlider(settings.lookSensitivity, low: 0.3, high: 12,
-                    label: AppLanguage.choose("Look speed")) { [weak self] v in self?.settings.lookSensitivity = v }
-            case .stickAim:
-                content.text = AppLanguage.choose("Aim stick speed")
-                content.secondaryText = AppLanguage.choose("Virtual right stick")
-                cell.accessoryView = sensitivitySlider(settings.aimSensitivity, low: 0.3, high: 12,
-                    label: AppLanguage.choose("Aim look speed")) { [weak self] v in self?.settings.aimSensitivity = v }
             case .targeting:
                 content.text = AppLanguage.choose("Targeting")
                 let button = UIButton(configuration: .gray())
@@ -560,61 +484,6 @@ final class SettingsViewController: UITableViewController {
             let cheat = StoryCheats.all[indexPath.row - storyCheatStart]
             content.text = AppLanguage.choose(cheat.title)
             content.secondaryText = AppLanguage.choose(cheat.detail)
-        case .gyro:
-            let aimRows = settings.gyroAim == .off ? 1 : 3
-            if indexPath.row == aimRows {
-                content.text = AppLanguage.choose("Tilt steering")
-                let button = UIButton(configuration: .gray())
-                button.configuration?.title = settings.tiltSteer.title
-                button.menu = UIMenu(children: TiltSteerMode.allCases.map { mode in
-                    UIAction(title: mode.title, state: mode == settings.tiltSteer ? .on : .off) { [weak self] _ in
-                        self?.settings.tiltSteer = mode; UIView.performWithoutAnimation { self?.reload(.gyro) }
-                    }
-                })
-                button.showsMenuAsPrimaryAction = true
-                button.sizeToFit()
-                cell.accessoryView = button
-                cell.selectionStyle = .none
-            } else if indexPath.row == aimRows + 1 {
-                content.text = AppLanguage.interpolate(AppLanguage.choose("Full lock at {arg0}°"), [String(describing: Int(settings.tiltFullLock))])
-                cell.accessoryView = slider(settings.tiltFullLock, 10, 45, label: AppLanguage.choose("Tilt for full steering")) { [weak self] in self?.settings.tiltFullLock = $0.rounded() }
-                cell.selectionStyle = .none
-            } else if indexPath.row == 0 {
-                content.text = AppLanguage.choose("Gyro")
-                content.secondaryText = settings.gyroAim.title
-                let menu = UIMenu(children: GyroAimMode.allCases.map { mode in
-                    UIAction(title: mode.title, state: mode == settings.gyroAim ? .on : .off) { [weak self] _ in
-                        self?.settings.gyroAim = mode; UIView.performWithoutAnimation { self?.reload(.gyro) }
-                    }
-                })
-                let button = UIButton(configuration: .gray())
-                button.configuration?.title = settings.gyroAim.title
-                button.menu = menu
-                button.showsMenuAsPrimaryAction = true
-                button.sizeToFit()
-                cell.accessoryView = button
-                cell.selectionStyle = .none
-            } else if indexPath.row == 1 {
-                content.text = String(format: AppLanguage.choose("Sensitivity %.1f×"), settings.gyroSensitivity)
-                let slider = UISlider()
-                slider.minimumValue = 0.2; slider.maximumValue = 3
-                slider.value = Float(settings.gyroSensitivity)
-                slider.frame.size.width = 150
-                slider.accessibilityLabel = AppLanguage.choose("Gyro sensitivity")
-                slider.addAction(UIAction { [weak self, weak slider] _ in
-                    guard let self, let slider else { return }
-                    self.settings.gyroSensitivity = (Double(slider.value) * 10).rounded() / 10
-                    var updated = cell.defaultContentConfiguration()
-                    updated.text = String(format: AppLanguage.choose("Sensitivity %.1f×"), self.settings.gyroSensitivity)
-                    cell.contentConfiguration = updated
-                }, for: .valueChanged)
-                cell.accessoryView = slider
-                cell.selectionStyle = .none
-            } else {
-                content.text = AppLanguage.choose("Invert vertical")
-                cell.accessoryView = toggle(settings.gyroInvertY, label: AppLanguage.choose("Invert vertical gyro")) { [weak self] in self?.settings.gyroInvertY = $0 }
-                cell.selectionStyle = .none
-            }
         case .files:
             configureFileCell(cell, &content, fileRows[indexPath.row])
         case .language:
@@ -643,15 +512,7 @@ final class SettingsViewController: UITableViewController {
                 content.textProperties.font = .preferredFont(forTextStyle: .footnote)
                 content.textProperties.color = .secondaryLabel
                 cell.selectionStyle = .none
-            } else if indexPath.row == 1 {
-                content.text = AppLanguage.choose("Send log to the developer")
-                content.secondaryText = AppLanguage.choose("One tap. Helps fix crashes and loading problems")
-                content.textProperties.color = .systemBlue
-            } else if indexPath.row == 2 {
-                content.text = AppLanguage.choose("Share log")
-                content.secondaryText = AppLanguage.choose("Save or send this run's log and the previous one yourself")
-                content.textProperties.color = .systemBlue
-            } else if indexPath.row >= 4 {
+            } else if indexPath.row >= 1 {
                 // Experimental (v1.4.3, BC3 v1.4.4): on by default; turning one off applies the next time the app starts.
                 let rows: [(String, String, ReferenceWritableKeyPath<GameSettings, Bool>)] = [
                     (AppLanguage.choose("Smarter texture loading"), AppLanguage.choose("Experimental. Keeps the ground and roads from turning grey after long play. Turn off if the game runs out of memory."), \.smarterTextureLoading),
@@ -660,24 +521,20 @@ final class SettingsViewController: UITableViewController {
                     (AppLanguage.choose("Compressed see-through textures"), AppLanguage.choose("Experimental. On iPhones before the 15 Pro, leaves, fences, smoke and decals use a quarter of the memory, so more of the world stays sharp. Turn off if soft see-through edges show steps."), \.compressedAlphaTextures),
                     (AppLanguage.choose("More engine memory"), AppLanguage.choose("Experimental, off by default. Gives the game about 270 MB more room inside its 4 GB, for fewer stops after long play on 6-8 GB iPhones. Turn off if the game stops more often."), \.smallerEngineHeaps),
                 ]
-                let (title, detail, key) = rows[indexPath.row - 4]
+                let (title, detail, key) = rows[indexPath.row - 1]
                 content.text = title
                 content.secondaryText = detail + " " + AppLanguage.choose("Applies the next time the app starts.")
                 cell.accessoryView = toggle(settings[keyPath: key], label: title) { [weak self] in self?.settings[keyPath: key] = $0 }
                 cell.selectionStyle = .none
-            } else {
-                content.text = AppLanguage.choose("Five Star Port on Telegram")
-                content.secondaryText = AppLanguage.choose("Official updates, help and the latest version")
-                content.textProperties.color = .systemBlue
             }
         }
-        // The tab row uses its own full-width UISegmentedControl.  Assigning
-        // UIListContentConfiguration here creates a managed content view on top
-        // of the custom subview, hiding it and swallowing touches.
-        if sectionKind(indexPath.section) == .controls,
-           controlsRows[indexPath.row] == .tab { return cell }
         cell.contentConfiguration = content
         return cell
+    }
+
+    private func trainerIndex(_ path: IndexPath) -> IndexPath {
+        guard sectionKind(path.section) == .cheats, let rows = trainerRows else { return path }
+        return IndexPath(row: rows[path.row], section: path.section)
     }
 
     /// An action row: one action runs right away (Settings closes first); several open a list to pick from.
@@ -721,9 +578,7 @@ final class SettingsViewController: UITableViewController {
 
     override func tableView(_ tableView: UITableView, didSelectRowAt indexPath: IndexPath) {
         tableView.deselectRow(at: indexPath, animated: true)
-        if sectionKind(indexPath.section) == .device, indexPath.row == 1 { sendLog(); return }
-        if sectionKind(indexPath.section) == .device, indexPath.row == 2 { shareLogs(from: tableView.cellForRow(at: indexPath)); return }
-        if sectionKind(indexPath.section) == .device, indexPath.row == 3 { UIApplication.shared.open(Theme.telegramURL); return }
+        let indexPath = trainerIndex(indexPath)
         if sectionKind(indexPath.section) == .controls,
            controlsRows[indexPath.row] == .editLayout { editLayout?(); return }
         if sectionKind(indexPath.section) == .cheats, indexPath.row == 0 {
@@ -794,7 +649,7 @@ final class SettingsViewController: UITableViewController {
         for (row, kind) in rows.enumerated() {
             guard let cell = tableView.cellForRow(at: IndexPath(row: row, section: section)) else { continue }
             var content = cell.defaultContentConfiguration()
-            content.secondaryTextProperties.color = .secondaryLabel
+            content.secondaryTextProperties.color = Theme.secondaryText
             configureFileCell(cell, &content, kind)
             cell.contentConfiguration = content
         }
@@ -939,24 +794,6 @@ final class SettingsViewController: UITableViewController {
         let (w, h) = GraphicsConfiguration.size(for: engineRunning ? bootPreset : settings.graphicsPreset, renderHeight: settings.renderHeight,
                                                 screen: screen, matchScreenShape: settings.matchScreenShape)
         return AppLanguage.interpolate(AppLanguage.choose("Renders at {arg0}×{arg1}"), [String(describing: w), String(describing: h)])
-    }
-    /// Uploads the logs after the player confirms, with an optional note (its own screen, so the
-    /// keyboard never covers Send in landscape).
-    private func sendLog() {
-        let screen = SendLogViewController()
-        screen.finished = { [weak self] title, message in self?.showAlert(title, message) }
-        let nav = UINavigationController(rootViewController: screen)
-        nav.modalPresentationStyle = .fullScreen
-        present(nav, animated: true)
-    }
-    private func shareLogs(from cell: UITableViewCell?) {
-        let documents = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0]
-        let logs = ["native-port.log", "native-port-previous.log"].map { documents.appendingPathComponent($0) }
-            .filter { FileManager.default.fileExists(atPath: $0.path) }
-        guard !logs.isEmpty else { showAlert(AppLanguage.choose("No log yet"), AppLanguage.choose("Start the game once, then try again.")); return }
-        let sheet = UIActivityViewController(activityItems: logs, applicationActivities: nil)
-        sheet.popoverPresentationController?.sourceView = cell ?? view
-        present(sheet, animated: true)
     }
     private func resolutionTitle(_ height: Int) -> String {
         if height == 0 {

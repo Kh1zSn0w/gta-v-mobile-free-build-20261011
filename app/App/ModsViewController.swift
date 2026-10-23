@@ -13,6 +13,7 @@ final class ModsViewController: UITableViewController, UIDocumentPickerDelegate 
     override func viewDidLoad() {
         super.viewDidLoad()
         title = AppLanguage.choose("Mods")
+        Theme.styleSettingsTable(tableView)
         tableView.register(UITableViewCell.self, forCellReuseIdentifier: "cell")
         reload()
     }
@@ -27,7 +28,7 @@ final class ModsViewController: UITableViewController, UIDocumentPickerDelegate 
     override func tableView(_ tableView: UITableView, titleForFooterInSection section: Int) -> String? {
         section == 0
             ? AppLanguage.choose("Pick a mod as you downloaded it (zip, rar, oiv, asi or loose files). The app finds where each file goes. Car, skin and add-on mods need the game files on this iPhone.")
-            : AppLanguage.choose("Changes apply the next time the game starts. Mods can cause crashes and glitches that we can't fix: ask about them in the Mods topic on Telegram.")
+            : AppLanguage.choose("Changes apply on the next launch. Try new mods one at a time. Disable heavy vehicle and texture packs when using Performance mode.")
     }
 
     override func tableView(_ tableView: UITableView, cellForRowAt indexPath: IndexPath) -> UITableViewCell {
@@ -69,6 +70,9 @@ final class ModsViewController: UITableViewController, UIDocumentPickerDelegate 
             cell.accessoryView = toggle
             cell.selectionStyle = .none
         }
+        cell.backgroundColor = Theme.rowBackground
+        cell.tintColor = Theme.accent
+        content.secondaryTextProperties.color = Theme.secondaryText
         cell.contentConfiguration = content
         return cell
     }

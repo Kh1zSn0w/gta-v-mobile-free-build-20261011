@@ -10,6 +10,8 @@
 #include <errno.h>
 #include "NativePackedAssetCache.h"
 #include "NativeAssetReadCache.h"
+#include "NativeLocalReadCache.h"
+static PGLocalReadCache localReadHandles={.lock=PTHREAD_MUTEX_INITIALIZER};
 #include "NativeAssetPreload.h"
 #include "NativeOIV.h"
 
@@ -641,21 +643,22 @@ static int64_t readLocalAsset(uint32_t id,uint64_t offset,uint8_t *destination,u
   NSString *file=modFiles[@(id)]?:[localDataRoot stringByAppendingPathComponent:entry[0]];
   PGModArchive *changed=modArchiveCount?modArchiveFor(id):NULL;
   if(changed){int64_t got=readModArchive(changed,file,offset,destination,length);if(got>=0)assetReadSource=4;return got;}
-  int descriptor=open(file.fileSystemRepresentation,O_RDONLY);
+  PGLocalReadHandle *held=NULL;
+  int descriptor=pg_local_read_acquire(&localReadHandles,file.fileSystemRepresentation,&held);
   if(descriptor<0){NSString *message=[@"Game file missing from your folder: " stringByAppendingString:entry[0]];pg_log(message.UTF8String);return -1;}
   uint64_t done=0;
   while(done<length){
     ssize_t n=pread(descriptor,destination+done,length-done,(off_t)(offset+done));
     if(n<0&&errno==EINTR)continue;
     if(n<0){
-      int error=errno;close(descriptor);
+      int error=errno;pg_local_read_release(&localReadHandles,descriptor,held);
       NSString *message=[NSString stringWithFormat:@"Game file could not be read: %@ (error %d, %s)",entry[0],error,strerror(error)];
       pg_log(message.UTF8String);return -1;
     }
     if(n==0)break;
     done+=(uint64_t)n;
   }
-  close(descriptor);assetReadSource=4;
+  pg_local_read_release(&localReadHandles,descriptor,held);assetReadSource=4;
   return (int64_t)done;
 }
 static int64_t readAssetImpl(uint32_t id,uint64_t offset,uint8_t *destination,uint32_t length) {

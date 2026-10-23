@@ -25,8 +25,8 @@ run_url = 'https://github.com/' + os.environ['GITHUB_REPOSITORY'] + '/actions/ru
 release = api('/repos/' + private + '/releases', {
     'tag_name': 'personal-v' + version + '-free-build-' + run_id,
     'target_commitish': private_sha,
-    'name': 'GTA V Mobile v' + version + ' personal build ' + run_id,
-    'body': 'Native build result: ' + result + '\nSource: ' + sha + '\nBuild: ' + run_url + '\nSimulator UI tests run in the separate preview job.\nDevice camera responsiveness is not measured.',
+    'name': 'GTA V MOBILE',
+    'body': 'GTA V MOBILE',
     'draft': False, 'prerelease': True})
 report = {'source_sha': sha, 'run_id': run_id, 'run_url': run_url, 'build_result': result,
     'private_source_sha': private_sha, 'version': version}

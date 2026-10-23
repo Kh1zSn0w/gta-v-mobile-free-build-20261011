@@ -13,7 +13,7 @@ settings:
     CLANG_CXX_LANGUAGE_STANDARD: c++20
     CLANG_ENABLE_OBJC_ARC: YES
     OTHER_CPLUSPLUSFLAGS: []
-    GCC_OPTIMIZATION_LEVEL: "0"
+    GCC_OPTIMIZATION_LEVEL: "2"
     GCC_PREPROCESSOR_DEFINITIONS:
       - $(inherited)
       - WASM_RT_USE_MMAP=0
@@ -101,9 +101,9 @@ targets:
     info:
       path: App/Info.plist
       properties:
-        CFBundleDisplayName: GTA V Port
+        CFBundleDisplayName: GTA V MOBILE
         CFBundleDevelopmentRegion: en
-        CFBundleShortVersionString: "2.3"
+        CFBundleShortVersionString: "2.4"
         # Your game-file server may be a plain-http address on your tailnet.
         NSAppTransportSecurity:
           NSAllowsArbitraryLoads: true
@@ -114,7 +114,7 @@ targets:
         # The app folder (logs) is visible in the Files app.
         UIFileSharingEnabled: true
         LSSupportsOpeningDocumentsInPlace: true
-        CFBundleVersion: "15"
+        CFBundleVersion: "16"
         UILaunchScreen: {}
         UIRequiresFullScreen: true
         # Lets the game present above 60 FPS on ProMotion iPhones when the frame rate is unlocked.

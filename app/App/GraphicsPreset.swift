@@ -13,12 +13,12 @@ enum GraphicsPreset: Int, CaseIterable {
     /// The presets Settings offers, lowest first.
     static var available: [GraphicsPreset] { allCases.filter { $0 != .lite || liteAvailable } }
 
-    var title: String { [AppLanguage.choose("Ultra Performance"), AppLanguage.choose("Battery"), AppLanguage.choose("Performance"), AppLanguage.choose("Balanced"), AppLanguage.choose("Quality"), AppLanguage.choose("Ultra"), "Extreme", AppLanguage.choose("Max")][rawValue + 1] }
+    var title: String { ["Performance mode", AppLanguage.choose("Battery"), AppLanguage.choose("Performance"), AppLanguage.choose("Balanced"), AppLanguage.choose("Quality"), AppLanguage.choose("Ultra"), "Extreme", AppLanguage.choose("Max")][rawValue + 1] }
     /// Render height in pixels; width follows the screen's shape.
-    var height: Int { [432, 432, 540, 720, 900, 1080, 720, 1290][rawValue + 1] }
+    var height: Int { [360, 432, 540, 720, 900, 1080, 720, 1290][rawValue + 1] }
     var detail: String {
-        [AppLanguage.choose("For iPhones with little memory: lower detail and draw distance, so the world keeps loading"),
-         AppLanguage.choose("Lowest load, longest play time"), AppLanguage.choose("Today's tested setup for 6 GB iPhones"), AppLanguage.choose("Sharper image and shadows"),
+        [AppLanguage.choose("Targets 30 FPS at 360p with sparse traffic, reduced textures and shorter draw distance. Experimental on 2–3 GB devices."),
+         AppLanguage.choose("Lowest load, longest play time"), AppLanguage.choose("Lower GPU load with standard world detail"), AppLanguage.choose("Sharper image and shadows"),
          AppLanguage.choose("Higher detail textures, effects and draw distance"), AppLanguage.choose("1080p with high shaders, shadows and reflections"),
          "High-detail 720p; memory use stays within the iOS allowance",
          AppLanguage.choose("Near-native resolution, high textures and full draw distance (newest Pro phones)")][rawValue + 1]
